@@ -20,6 +20,75 @@ const masonryStyles = `
   .my-masonry-grid_column > div {
     margin-bottom: 16px;
   }
+  
+  /* Responsive styles for pin cards */
+  @media (max-width: 768px) {
+    .pin-card {
+      max-width: 100%;
+      margin-bottom: 12px;
+    }
+    .pin-card-img {
+      max-height: 280px;
+    }
+    .pin-card-title {
+      font-size: 0.85rem;
+    }
+    .board-title {
+      font-size: 1.5rem;
+    }
+    .username {
+      font-size: 1rem;
+    }
+  }
+  
+  @media (max-width: 640px) {
+    .pin-card-img {
+      max-height: 220px;
+    }
+    .pin-card-title {
+      font-size: 0.75rem;
+    }
+    .board-title {
+      font-size: 1.25rem;
+    }
+    .username {
+      font-size: 0.875rem;
+    }
+    .btn-text {
+      display: none;
+    }
+    .search-input {
+      font-size: 0.875rem;
+    }
+  }
+  
+  @media (max-width: 480px) {
+    .pin-card-img {
+      max-height: 180px;
+    }
+    .my-masonry-grid_column {
+      padding-left: 8px; /* smaller gutter for mobile */
+    }
+    .my-masonry-grid {
+      margin-left: -8px; /* smaller gutter for mobile */
+    }
+    .board-title {
+      font-size: 1.125rem;
+    }
+    .button-icon {
+      height: 1rem;
+      width: 1rem;
+    }
+  }
+  
+  @media (max-width: 360px) {
+    .pin-card-img {
+      max-height: 160px;
+    }
+    .board-title {
+      font-size: 1rem;
+    }
+  }
 `;
 
 interface Pin {
@@ -63,6 +132,10 @@ export default function BoardDetailPage({
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [filterBy, setFilterBy] = useState<string[]>([]);
   
+  // References for dropdown menus
+  const sortRef = React.useRef<HTMLDivElement>(null);
+  const filterRef = React.useRef<HTMLDivElement>(null);
+  
   // Add new state for available filters
   const [availableHashtags, setAvailableHashtags] = useState<Set<string>>(new Set());
   
@@ -72,8 +145,34 @@ export default function BoardDetailPage({
     1280: 4,    // 4 columns at 1280px or more
     1024: 3,    // 3 columns at 1024px or more
     768: 2,     // 2 columns at 768px or more
-    640: 1      // 1 column at 640px or below
+    480: 2,     // 2 columns at 480px or more
+    360: 1      // 1 column at 360px or below (very small phones)
   };
+  
+  // Handler for clicks outside the sort and filter dropdowns
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      // Close sort dropdown if click is outside
+      if (sortRef.current && !sortRef.current.contains(event.target as Node) && isSortOpen) {
+        setIsSortOpen(false);
+      }
+      
+      // Close filter dropdown if click is outside
+      if (filterRef.current && !filterRef.current.contains(event.target as Node) && isFilterOpen) {
+        setIsFilterOpen(false);
+      }
+    }
+    
+    // Add event listener when modals are open
+    if (isSortOpen || isFilterOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    
+    // Clean up the event listener
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [isSortOpen, isFilterOpen]);
   
   useEffect(() => {
     const fetchData = async () => {
@@ -366,25 +465,29 @@ export default function BoardDetailPage({
       
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="pb-5 border-b border-gray-200 sm:flex sm:items-center sm:justify-between mb-6">
-          <h1 className="text-2xl font-semibold text-gray-900">
+          <h1 className="text-2xl font-semibold text-gray-900 board-title">
             {board?.name || 'Board Details'}
             {accountUsername && (
-              <span className="ml-2 text-gray-500 text-lg">@{accountUsername}</span>
+              <span className="ml-2 text-gray-500 text-lg username">@{accountUsername}</span>
+              
+            )}
+            {!loading && !error && (
+              <span className="text-gray-500 text-lg ml-2 username">({pins.length})</span>
             )}
           </h1>
           <div className="mt-3 flex flex-wrap gap-2 sm:mt-0 sm:ml-4">
             {/* Search Button and Dropdown */}
-            <div className="relative flex-1 min-w-[250px]">
+            <div className="relative flex-1 min-w-[200px] sm:min-w-[250px]">
               <div className="relative">
                 <input
                   type="text"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   placeholder="Search pins..."
-                  className="w-full p-2 pl-10 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full p-2 pl-10 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 search-input"
                 />
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 sm:h-5 sm:w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                   </svg>
                 </div>
@@ -393,7 +496,7 @@ export default function BoardDetailPage({
                     onClick={() => setSearchTerm('')}
                     className="absolute inset-y-0 right-0 pr-3 flex items-center"
                   >
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-400 hover:text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 sm:h-5 sm:w-5 text-gray-400 hover:text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                     </svg>
                   </button>
@@ -407,16 +510,17 @@ export default function BoardDetailPage({
             </div>
             
             {/* Sort Button and Dropdown */}
-            <div className="relative">
+            <div className="relative" ref={sortRef}>
               <button
                 type="button"
                 onClick={() => setIsSortOpen(!isSortOpen)}
-                className="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                className="inline-flex items-center px-3 sm:px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                aria-label="Sort pins"
               >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 button-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12" />
                 </svg>
-                Sort
+                <span className="ml-2 btn-text">Sort</span>
               </button>
               
               {isSortOpen && (
@@ -452,16 +556,24 @@ export default function BoardDetailPage({
             </div>
             
             {/* Filter Button and Dropdown */}
-            <div className="relative">
+            <div className="relative" ref={filterRef}>
               <button
                 type="button"
                 onClick={() => setIsFilterOpen(!isFilterOpen)}
-                className="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                className="inline-flex items-center px-3 sm:px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                aria-label="Filter pins"
               >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 button-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
                 </svg>
-                Filter {filterBy.length > 0 && `(${filterBy.length})`}
+                <span className="ml-2 btn-text">
+                  Filter {filterBy.length > 0 && `(${filterBy.length})`}
+                </span>
+                {filterBy.length > 0 && (
+                  <span className="hidden ml-1 sm:hidden md:inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
+                    {filterBy.length}
+                  </span>
+                )}
               </button>
               
               {isFilterOpen && (
@@ -598,7 +710,7 @@ export default function BoardDetailPage({
 
         {loading ? (
           <div className="flex justify-center items-center py-12">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-700"></div>
           </div>
         ) : error ? (
           <div className="bg-white shadow overflow-hidden sm:rounded-lg">
@@ -782,7 +894,7 @@ export default function BoardDetailPage({
                     }
                     openPinModal(pin);
                   }}
-                  className="mb-4 cursor-pointer"
+                  className="mb-4 cursor-pointer pin-card"
                 >
                   <div className="bg-white rounded-lg shadow overflow-hidden hover:shadow-md transition-shadow duration-200 relative group">
                     {imageUrl ? (
@@ -790,7 +902,8 @@ export default function BoardDetailPage({
                         <img
                           src={imageUrl}
                           alt={title}
-                          className="w-full object-cover"
+                          className="w-full object-cover pin-card-img"
+                          style={{ maxHeight: '320px' }}
                           onError={(e) => {
                             // If image fails to load, replace with placeholder
                             const target = e.target as HTMLImageElement;
@@ -807,7 +920,7 @@ export default function BoardDetailPage({
                               href={link}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="visit-site-btn absolute bottom-3 left-3 bg-white text-gray-900 text-xs font-medium px-3 py-1.5 rounded-full shadow opacity-0 group-hover:opacity-100 transition-opacity duration-200 hover:bg-gray-100"
+                              className="visit-site-btn absolute bottom-3 left-3 bg-white text-gray-900 text-xs font-medium px-2 py-1 rounded-full shadow opacity-0 group-hover:opacity-100 transition-opacity duration-200 hover:bg-gray-100"
                               onClick={(e) => {
                                 e.stopPropagation();
                               }}
@@ -818,7 +931,7 @@ export default function BoardDetailPage({
                         </div>
                       </>
                     ) : (
-                      <div className="w-full h-48 flex items-center justify-center text-gray-400">
+                      <div className="w-full h-48 flex items-center justify-center text-gray-400 pin-card-img">
                         <svg
                           className="h-12 w-12"
                           fill="none"
@@ -837,7 +950,7 @@ export default function BoardDetailPage({
                   </div>
                   {/* Pinterest-style title below the image - only shown if title exists */}
                   {title && title !== 'Pinterest Pin' && (
-                    <h3 className="mt-2 text-sm font-medium text-gray-900 truncate">
+                    <h3 className="mt-2 text-sm font-medium text-gray-900 truncate pin-card-title">
                       {title}
                     </h3>
                   )}

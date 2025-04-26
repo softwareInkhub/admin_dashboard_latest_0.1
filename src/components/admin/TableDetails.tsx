@@ -322,7 +322,7 @@ export const TableDetails: React.FC<TableDetailsProps> = ({
         <nav className="flex -mb-px">
           <button
             onClick={() => setActiveTab('info')}
-            className={`px-6 py-3 border-b-2 text-sm font-medium ${
+            className={`px-3 sm:px-6 py-2 sm:py-3 border-b-2 text-xs sm:text-sm font-medium ${
               activeTab === 'info'
                 ? 'border-blue-500 text-blue-600'
                 : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
@@ -332,7 +332,7 @@ export const TableDetails: React.FC<TableDetailsProps> = ({
           </button>
           <button
             onClick={() => setActiveTab('data')}
-            className={`px-6 py-3 border-b-2 text-sm font-medium ${
+            className={`px-3 sm:px-6 py-2 sm:py-3 border-b-2 text-xs sm:text-sm font-medium ${
               activeTab === 'data'
                 ? 'border-blue-500 text-blue-600'
                 : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
@@ -343,20 +343,20 @@ export const TableDetails: React.FC<TableDetailsProps> = ({
         </nav>
       </div>
 
-      <div className="p-6">
+      <div className="p-3 sm:p-6">
         {activeTab === 'info' ? (
           <div>
-            <h3 className="text-lg font-semibold mb-4">Table Information</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <h3 className="text-base sm:text-lg font-semibold mb-3 sm:mb-4">Table Information</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
               <div>
-                <p className="text-sm text-gray-600">Table Name</p>
-                <p className="font-medium text-gray-900">{tableDetails?.TableName || 'Unknown'}</p>
+                <p className="text-xs sm:text-sm text-gray-600">Table Name</p>
+                <p className="text-xs sm:text-base font-medium text-gray-900">{tableDetails?.TableName || 'Unknown'}</p>
               </div>
               <div>
-                <p className="text-sm text-gray-600">Status</p>
+                <p className="text-xs sm:text-sm text-gray-600">Status</p>
                 <p className="font-medium">
                   <span
-                    className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                    className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
                       tableDetails?.TableStatus === 'ACTIVE'
                         ? 'bg-green-100 text-green-800'
                         : 'bg-yellow-100 text-yellow-800'
@@ -367,38 +367,38 @@ export const TableDetails: React.FC<TableDetailsProps> = ({
                 </p>
               </div>
               <div>
-                <p className="text-sm text-gray-600">Item Count</p>
-                <p className="font-medium text-gray-900">
+                <p className="text-xs sm:text-sm text-gray-600">Item Count</p>
+                <p className="text-xs sm:text-base font-medium text-gray-900">
                   {typeof tableDetails?.ItemCount === 'number' 
                     ? tableDetails.ItemCount.toLocaleString() 
                     : 'Unknown'}
                 </p>
               </div>
               <div>
-                <p className="text-sm text-gray-600">Table Size</p>
-                <p className="font-medium text-gray-900">
+                <p className="text-xs sm:text-sm text-gray-600">Table Size</p>
+                <p className="text-xs sm:text-base font-medium text-gray-900">
                   {typeof tableDetails?.TableSizeBytes === 'number'
                     ? `${(tableDetails.TableSizeBytes / 1024 / 1024).toFixed(2)} MB`
                     : 'Unknown'}
                 </p>
               </div>
               <div>
-                <p className="text-sm text-gray-600">Creation Date</p>
-                <p className="font-medium text-gray-900">
+                <p className="text-xs sm:text-sm text-gray-600">Creation Date</p>
+                <p className="text-xs sm:text-base font-medium text-gray-900">
                   {tableDetails?.CreationDateTime
                     ? new Date(tableDetails.CreationDateTime).toLocaleString()
                     : 'Unknown'}
                 </p>
               </div>
               <div>
-                <p className="text-sm text-gray-600">Table ARN</p>
-                <p className="font-medium text-xs truncate text-gray-900" title={tableDetails?.TableArn || 'Unknown'}>
+                <p className="text-xs sm:text-sm text-gray-600">Table ARN</p>
+                <p className="text-xs sm:text-base font-medium truncate text-gray-900" title={tableDetails?.TableArn || 'Unknown'}>
                   {tableDetails?.TableArn || 'Unknown'}
                 </p>
               </div>
               {cacheInfo?.detailsTimestamp && (
                 <div>
-                  <p className="text-sm text-gray-600">Details Cache Date</p>
+                  <p className="text-xs sm:text-sm text-gray-600">Details Cache Date</p>
                   <p className="font-medium text-gray-900">
                     {new Date(cacheInfo.detailsTimestamp).toLocaleString()}
                   </p>
@@ -406,26 +406,26 @@ export const TableDetails: React.FC<TableDetailsProps> = ({
               )}
               {cacheInfo?.itemsTimestamp && (
                 <div>
-                  <p className="text-sm text-gray-600">Items Cache Date</p>
-                  <p className="font-medium text-gray-900">
+                  <p className="text-xs sm:text-sm text-gray-600">Items Cache Date</p>
+                  <p className="text-xs sm:text-base font-medium text-gray-900">
                     {new Date(cacheInfo.itemsTimestamp).toLocaleString()}
                   </p>
                 </div>
               )}
             </div>
 
-            <h3 className="text-lg font-semibold mt-6 mb-4">Primary Key</h3>
+            <h3 className="text-base sm:text-lg font-semibold mt-4 sm:mt-6 mb-3 sm:mb-4">Primary Key</h3>
             <div className="overflow-hidden shadow ring-1 ring-black ring-opacity-5 md:rounded-lg">
               <table className="min-w-full divide-y divide-gray-300">
                 <thead className="bg-gray-50">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Attribute Name
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Key Type
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Data Type
                     </th>
                   </tr>
@@ -438,13 +438,13 @@ export const TableDetails: React.FC<TableDetailsProps> = ({
                       );
                       return (
                         <tr key={key.AttributeName}>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          <td className="px-3 sm:px-6 py-2 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-900">
                             {key.AttributeName}
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          <td className="px-3 sm:px-6 py-2 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-900">
                             {key.KeyType}
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          <td className="px-3 sm:px-6 py-2 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-900">
                             {attributeDef?.AttributeType || 'Unknown'}
                           </td>
                         </tr>
@@ -452,7 +452,7 @@ export const TableDetails: React.FC<TableDetailsProps> = ({
                     })
                   ) : (
                     <tr>
-                      <td colSpan={3} className="px-6 py-4 text-center text-sm text-gray-500">
+                      <td colSpan={3} className="px-3 sm:px-6 py-2 sm:py-4 text-center text-xs sm:text-sm text-gray-500">
                         No key schema information available
                       </td>
                     </tr>
@@ -463,8 +463,8 @@ export const TableDetails: React.FC<TableDetailsProps> = ({
           </div>
         ) : (
           <div className="flex flex-col h-full">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-semibold">
+            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-4 gap-2 sm:gap-0">
+              <h3 className="text-base sm:text-lg font-semibold">
                 {isQueryMode ? 'Query Results' : 'Table Data'} 
                 {totalCount !== undefined && ` (${items.length} of ${totalCount})`}
               </h3>
@@ -485,44 +485,44 @@ export const TableDetails: React.FC<TableDetailsProps> = ({
                     });
                   }}
                   disabled={clearingCache}
-                  className="px-3 py-1 text-sm bg-blue-50 text-blue-600 hover:bg-blue-100 rounded flex items-center disabled:opacity-50"
+                  className="px-2 sm:px-3 py-1 text-xs sm:text-sm bg-blue-50 text-blue-600 hover:bg-blue-100 rounded flex items-center disabled:opacity-50"
                   title="Manually clear cached data from disk storage and reload from DynamoDB"
                 >
                   {clearingCache ? (
                     <>
-                      <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <svg className="animate-spin -ml-1 mr-1 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                       </svg>
-                      Clearing Cache...
+                      <span className="text-xs sm:text-sm">Clearing Cache...</span>
                     </>
                   ) : (
                     <>
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                       </svg>
-                      Clear Cache
+                      <span className="text-xs sm:text-sm">Clear Cache</span>
                     </>
                   )}
                 </button>
                 <button
                   onClick={onRefresh}
-                  className="px-3 py-1 text-sm bg-green-50 text-green-600 hover:bg-green-100 rounded flex items-center"
+                  className="px-2 sm:px-3 py-1 text-xs sm:text-sm bg-green-50 text-green-600 hover:bg-green-100 rounded flex items-center"
                   title="Refresh data using current cached settings"
                 >
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                   </svg>
-                  Refresh
+                  <span className="text-xs sm:text-sm">Refresh</span>
                 </button>
               </div>
             </div>
 
             {/* Search and filter area */}
-            <div className="mb-6 flex items-center justify-between flex-wrap gap-4">
-              <div className="flex items-center gap-4 flex-wrap">
+            <div className="mb-4 sm:mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between flex-wrap gap-3 sm:gap-4">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 flex-wrap">
                 {/* Status Bar */}
-                <div className="bg-gray-50 px-3 py-1 rounded-md border border-gray-200 text-xs text-gray-600 inline-flex items-center">
+                <div className="bg-gray-50 px-2 sm:px-3 py-1 rounded-md border border-gray-200 text-xs text-gray-600 inline-flex items-center">
                   <span className="font-medium">Loaded:</span>
                   <span className="ml-1">{items.length}</span>
                   {totalCount !== undefined && (
@@ -537,27 +537,27 @@ export const TableDetails: React.FC<TableDetailsProps> = ({
                 </div>
                 
                 {/* Search bar */}
-                <div className="w-64">
+                <div className="w-full sm:w-64">
                   <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                      <svg className="h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                    <div className="absolute inset-y-0 left-0 pl-2 sm:pl-3 flex items-center pointer-events-none">
+                      <svg className="h-4 w-4 sm:h-5 sm:w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
                         <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
                       </svg>
                     </div>
                     <input
                       type="text"
-                      className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 text-gray-600 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                      className="block w-full pl-8 sm:pl-10 pr-3 py-1.5 sm:py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 text-gray-600 text-xs sm:text-sm focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
                       placeholder="Search..."
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
                     />
                   </div>
                   {searchTerm && (
-                    <div className="mt-2 text-sm text-gray-500">
+                    <div className="mt-1 sm:mt-2 text-xs sm:text-sm text-gray-500">
                       {filteredItems.length} of {items.length}
                       {filteredItems.length === 0 && (
                         <button 
-                          className="ml-2 text-blue-500 hover:text-blue-700"
+                          className="ml-2 text-xs sm:text-sm text-blue-500 hover:text-blue-700"
                           onClick={() => setSearchTerm('')}
                         >
                           Clear
@@ -571,10 +571,10 @@ export const TableDetails: React.FC<TableDetailsProps> = ({
               {/* Field Selector */}
               <div className="relative" ref={fieldSelectorRef}>
                 <button 
-                  className="px-4 py-2 border border-gray-300 rounded-md bg-white text-gray-700 text-sm font-medium hover:bg-gray-50 focus:outline-none flex items-center"
+                  className="px-2 sm:px-4 py-1 sm:py-2 border border-gray-300 rounded-md bg-white text-gray-700 text-xs sm:text-sm font-medium hover:bg-gray-50 focus:outline-none flex items-center"
                   onClick={() => setShowFieldSelector(!showFieldSelector)}
                 >
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
                   </svg>
                   Field Filter
@@ -585,10 +585,10 @@ export const TableDetails: React.FC<TableDetailsProps> = ({
                 
                 {/* Dropdown menu */}
                 {showFieldSelector && (
-                  <div className="absolute right-0 mt-2 w-72 bg-white border border-gray-200 rounded-md shadow-lg z-20">
+                  <div className="absolute right-0 mt-1 sm:mt-2 w-64 sm:w-72 bg-white border border-gray-200 rounded-md shadow-lg z-20">
                     <div className="p-2 border-b border-gray-200">
-                      <div className="flex items-center justify-between mb-2">
-                        <h3 className="text-sm font-medium text-gray-700">Display Fields in Modal</h3>
+                      <div className="flex items-center justify-between mb-1 sm:mb-2">
+                        <h3 className="text-xs sm:text-sm font-medium text-gray-700">Display Fields in Modal</h3>
                         <button 
                           className="text-xs text-blue-600 hover:text-blue-800" 
                           onClick={handleSelectAllFields}
@@ -598,14 +598,14 @@ export const TableDetails: React.FC<TableDetailsProps> = ({
                       </div>
                       <div className="text-xs text-gray-500">Select which fields to display in item details</div>
                     </div>
-                    <div className="max-h-80 overflow-y-auto">
+                    <div className="max-h-60 sm:max-h-80 overflow-y-auto">
                       <div className="py-1 px-2">
                         {allFields.map(field => renderField(field))}
                       </div>
                     </div>
                     <div className="p-2 border-t border-gray-200 flex justify-end">
                       <button 
-                        className="px-3 py-1 text-xs bg-gray-100 hover:bg-gray-200 rounded"
+                        className="px-2 sm:px-3 py-1 text-xs bg-gray-100 hover:bg-gray-200 rounded"
                         onClick={() => setShowFieldSelector(false)}
                       >
                         Close

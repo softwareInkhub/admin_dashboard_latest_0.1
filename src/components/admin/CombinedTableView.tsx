@@ -184,8 +184,7 @@ export const CombinedTableView: React.FC<CombinedTableViewProps> = ({ tables, is
       addTableToSidebar(selectedTable);
       setIsSaved(true);
       
-      // Show a toast notification
-      toast(`Table "${selectedTable}" has been added to sidebar`, 'success');
+      // Remove toast notification
     }
   };
 
@@ -215,21 +214,21 @@ export const CombinedTableView: React.FC<CombinedTableViewProps> = ({ tables, is
 
   return (
     <div>
-      <div className="bg-white shadow rounded-lg mb-4 inline-block">
+      <div className="bg-white shadow rounded-lg mb-4 w-full">
         <div className="px-2 py-2">
-          <div className="flex items-center space-x-3">
+          <div className="flex flex-col sm:flex-row sm:items-center flex-wrap gap-2 sm:gap-3">
             <label htmlFor="table-select" className="text-sm font-medium text-gray-700 whitespace-nowrap">
               Select Table:
             </label>
-            <div className="w-80 relative" ref={dropdownRef}>
+            <div className="w-full sm:w-auto flex-grow max-w-full sm:max-w-xs relative" ref={dropdownRef}>
               <div 
-                className="block w-full px-4 py-2 text-sm text-gray-900 bg-white border border-gray-300 rounded-md shadow-sm cursor-pointer"
+                className="block w-full px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm text-gray-900 bg-white border border-gray-300 rounded-md shadow-sm cursor-pointer"
                 onClick={() => setIsDropdownOpen(!isDropdownOpen)}
               >
                 <div className="flex items-center justify-between">
-                  <span>{selectedTable || '-- Select a Table --'}</span>
+                  <span className="truncate">{selectedTable || '-- Select a Table --'}</span>
                   <svg 
-                    className={`h-5 w-5 text-gray-400 transition-transform ${isDropdownOpen ? 'transform rotate-180' : ''}`} 
+                    className={`h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0 ml-1 text-gray-400 transition-transform ${isDropdownOpen ? 'transform rotate-180' : ''}`} 
                     xmlns="http://www.w3.org/2000/svg" 
                     viewBox="0 0 20 20" 
                     fill="currentColor"
@@ -242,7 +241,7 @@ export const CombinedTableView: React.FC<CombinedTableViewProps> = ({ tables, is
               {isDropdownOpen && (
                 <div className="absolute z-10 mt-1 w-full bg-white shadow-lg rounded-md border border-gray-300 max-h-48 overflow-y-auto">
                   <div 
-                    className="cursor-pointer bg-gray-50 border-b border-gray-200 px-4 py-2 text-sm text-gray-700 font-medium hover:bg-gray-100"
+                    className="cursor-pointer bg-gray-50 border-b border-gray-200 px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm text-gray-700 font-medium hover:bg-gray-100"
                     onClick={() => {
                       setSelectedTable('');
                       setIsDropdownOpen(false);
@@ -253,7 +252,7 @@ export const CombinedTableView: React.FC<CombinedTableViewProps> = ({ tables, is
                   {tables.map((tableName) => (
                     <div 
                       key={tableName} 
-                      className={`cursor-pointer px-4 py-2 text-sm text-gray-800 ${selectedTable === tableName ? 'bg-blue-100' : 'hover:bg-gray-100'}`}
+                      className={`cursor-pointer px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm text-gray-800 ${selectedTable === tableName ? 'bg-blue-100' : 'hover:bg-gray-100'}`}
                       onClick={() => {
                         setSelectedTable(tableName);
                         setIsDropdownOpen(false);
@@ -271,13 +270,13 @@ export const CombinedTableView: React.FC<CombinedTableViewProps> = ({ tables, is
               <button
                 onClick={handleAddToSidebar}
                 disabled={isSaved}
-                className={`inline-flex items-center px-3 py-2 border ${
+                className={`inline-flex items-center px-2 sm:px-3 py-1 sm:py-2 border rounded-md text-xs sm:text-sm w-40 sm:w-auto ${
                   isSaved 
                     ? 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed' 
                     : 'border-gray-300 shadow-sm text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500'
                 }`}
               >
-                <svg className="-ml-0.5 mr-2 h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                <svg className="-ml-0.5 mr-1 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
                   <path d="M5 3a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2V5a2 2 0 00-2-2H5zM5 11a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2v-2a2 2 0 00-2-2H5zM11 5a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V5zM14 11a1 1 0 011 1v1h1a1 1 0 110 2h-1v1a1 1 0 11-2 0v-1h-1a1 1 0 110-2h1v-1a1 1 0 011-1z" />
                 </svg>
                 {isSaved ? 'Added to Sidebar' : 'Add to Sidebar'}
@@ -287,7 +286,7 @@ export const CombinedTableView: React.FC<CombinedTableViewProps> = ({ tables, is
             {isQueryMode && (
               <button
                 onClick={() => { setIsQueryMode(false); fetchTableDetails(selectedTable); }}
-                className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                className="inline-flex items-center px-2 sm:px-3 py-1 sm:py-2 border border-gray-300 shadow-sm text-xs sm:text-sm rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
               >
                 Clear Query
               </button>

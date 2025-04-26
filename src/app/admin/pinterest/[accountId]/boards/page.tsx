@@ -4,6 +4,79 @@ import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
+// Add responsive CSS styles
+const responsiveStyles = `
+  @media (max-width: 768px) {
+    .board-title {
+      font-size: 1.5rem;
+    }
+    .username {
+      font-size: 1rem;
+    }
+    .board-card-img {
+      height: 160px;
+    }
+    .board-card-title {
+      font-size: 0.875rem;
+    }
+    .board-card-description {
+      font-size: 0.75rem;
+    }
+  }
+  
+  @media (max-width: 640px) {
+    .board-title {
+      font-size: 1.25rem;
+    }
+    .username {
+      font-size: 0.875rem;
+    }
+    .board-card-img {
+      height: 140px;
+    }
+    .board-card-title {
+      font-size: 0.8125rem;
+    }
+    .board-card-description {
+      font-size: 0.6875rem;
+      -webkit-line-clamp: 1;
+    }
+    .board-card-date {
+      font-size: 0.625rem;
+    }
+  }
+  
+  @media (max-width: 480px) {
+    .board-title {
+      font-size: 1.125rem;
+    }
+    .username {
+      font-size: 0.75rem;
+    }
+    .board-card-img {
+      height: 120px;
+    }
+    .board-card-title {
+      font-size: 0.75rem;
+    }
+    .board-card-description {
+      font-size: 0.625rem;
+    }
+  }
+  
+  @media (max-width: 360px) {
+    .board-title {
+      font-size: 1rem;
+    }
+    .username {
+      font-size: 0.6875rem;
+    }
+    .board-card-img {
+      height: 100px;
+    }
+  }
+`;
+
 interface Board {
   id: string;
   name: string;
@@ -134,16 +207,19 @@ export default function BoardsPage({ params }: { params: { accountId: string } }
   
   return (
     <div className="py-8">
+      {/* Add the responsive styles */}
+      <style jsx global>{responsiveStyles}</style>
+      
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="pb-5 border-b border-gray-200 sm:flex sm:items-center sm:justify-between mb-6">
-          <h1 className="text-2xl font-semibold text-gray-900">
+          <h1 className="text-2xl font-semibold text-gray-900 board-title">
             Pinterest Boards
       
             {accountUsername && (
-              <span className="ml-2 text-gray-500 text-lg">@{accountUsername}</span>
+              <span className="ml-2 text-gray-500 text-lg username">@{accountUsername}</span>
             )}
             {!loading && !error && (
-              <span className="text-gray-500 text-lg ml-2">({boards.length})</span>
+              <span className="text-gray-500 text-lg ml-2 username">({boards.length})</span>
             )}
           </h1>
           <div className="mt-3 sm:mt-0 sm:ml-4">
@@ -171,7 +247,7 @@ export default function BoardsPage({ params }: { params: { accountId: string } }
 
         {loading ? (
           <div className="flex justify-center items-center py-12">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-700"></div>
           </div>
         ) : error ? (
           <div className="bg-white shadow overflow-hidden sm:rounded-lg">
@@ -260,7 +336,7 @@ export default function BoardsPage({ params }: { params: { accountId: string } }
             </div>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+          <div className="grid grid-cols-2 xs:grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 gap-2 xs:gap-3 sm:gap-4 lg:gap-6">
             {boards.map((board) => {
               // Determine the best image to use
               let imageUrl = board.image_thumbnail_url;
@@ -287,7 +363,7 @@ export default function BoardsPage({ params }: { params: { accountId: string } }
                   href={`/admin/pinterest/${accountId}/boards/${board.id}`}
                   className="bg-white rounded-lg shadow overflow-hidden hover:shadow-md transition-shadow duration-200"
                 >
-                  <div className="h-40 bg-gray-200 relative">
+                  <div className="h-24 xs:h-28 sm:h-32 md:h-40 bg-gray-200 relative board-card-img">
                     {imageUrl ? (
                       <img
                         src={imageUrl}
@@ -304,7 +380,7 @@ export default function BoardsPage({ params }: { params: { accountId: string } }
                     ) : (
                       <div className="w-full h-full flex items-center justify-center text-gray-400">
                         <svg
-                          className="h-12 w-12"
+                          className="h-6 w-6 xs:h-8 xs:w-8 sm:h-10 sm:w-10 md:h-12 md:w-12"
                           fill="none"
                           viewBox="0 0 24 24"
                           stroke="currentColor"
@@ -319,18 +395,18 @@ export default function BoardsPage({ params }: { params: { accountId: string } }
                       </div>
                     )}
                     {board.pin_count !== undefined && board.pin_count > 0 && (
-                      <div className="absolute top-2 right-2 bg-black bg-opacity-60 text-white text-xs px-2 py-1 rounded-full">
+                      <div className="absolute top-1 right-1 bg-black bg-opacity-60 text-white text-xs px-1 xs:px-1.5 sm:px-2 py-0.5 rounded-full text-[10px] xs:text-xs">
                         {board.pin_count} {board.pin_count === 1 ? 'pin' : 'pins'}
                       </div>
                     )}
                   </div>
-                  <div className="p-4">
-                    <h3 className="text-lg font-medium text-gray-900 truncate">{board.name}</h3>
+                  <div className="p-1.5 xs:p-2 sm:p-3 md:p-4">
+                    <h3 className="text-xs xs:text-sm sm:text-base md:text-lg font-medium text-gray-900 truncate board-card-title">{board.name}</h3>
                     {board.description && (
-                      <p className="mt-1 text-sm text-gray-500 line-clamp-2">{board.description}</p>
+                      <p className="mt-0.5 text-[10px] xs:text-xs sm:text-sm text-gray-500 line-clamp-1 sm:line-clamp-2 board-card-description">{board.description}</p>
                     )}
                     {createdDate && (
-                      <p className="mt-2 text-xs text-gray-400">
+                      <p className="mt-0.5 xs:mt-1 sm:mt-2 text-[10px] xs:text-xs text-gray-400 board-card-date">
                         Created {createdDate}
                       </p>
                     )}

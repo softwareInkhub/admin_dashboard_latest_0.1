@@ -3,6 +3,115 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 
+// Add responsive styles
+const responsiveStyles = `
+  @media (max-width: 768px) {
+    .page-title {
+      font-size: 1.25rem;
+    }
+    .page-icon {
+      height: 2rem;
+      width: 2rem;
+      margin-right: 0.5rem;
+    }
+    .add-button {
+      padding: 0.3rem 0.6rem;
+      font-size: 0.75rem;
+    }
+    
+    .account-card {
+      padding: 1.25rem;
+    }
+    .account-avatar {
+      height: 3rem;
+      width: 3rem;
+    }
+    .account-name {
+      font-size: 1rem;
+    }
+    .account-meta {
+      font-size: 0.75rem;
+    }
+    .board-chip {
+      font-size: 0.7rem;
+      padding: 0.25rem 0.5rem;
+    }
+  }
+  
+  @media (max-width: 640px) {
+    .page-title {
+      font-size: 1.1rem;
+    }
+    .page-icon {
+      height: 1.75rem;
+      width: 1.75rem;
+      margin-right: 0.4rem;
+    }
+    
+    .add-button-icon {
+      height: 0.8rem;
+      width: 0.8rem;
+    }
+    .account-card {
+      padding: 1rem;
+    }
+    .account-avatar {
+      height: 2.5rem;
+      width: 2.5rem;
+    }
+    .add-button {
+      padding: 0.25rem 0.5rem;
+      font-size: 0.7rem;
+    }
+    .account-name {
+      font-size: 0.875rem;
+    }
+    .board-section-title {
+      font-size: 0.75rem;
+    }
+    .board-chip {
+      font-size: 0.65rem;
+      padding: 0.2rem 0.4rem;
+    }
+  }
+  
+  @media (max-width: 480px) {
+    .page-title {
+      font-size: 1rem;
+    }
+    .page-icon {
+      height: 1.5rem;
+      width: 1.5rem;
+      margin-right: 0.3rem;
+    }
+    .add-button-icon {
+      height: 0.9rem;
+      width: 0.9rem;
+      margin-right: 0.2rem;
+    }
+    .account-avatar {
+      height: 2.25rem;
+      width: 2.25rem;
+    }
+    .account-info {
+      margin-left: 0.75rem;
+    }
+    .account-name {
+      font-size: 0.8125rem;
+    }
+    .account-meta {
+      font-size: 0.6875rem;
+    }
+    .board-card-grid {
+      gap: 0.25rem;
+    }
+    .board-chip {
+      font-size: 0.625rem;
+      padding: 0.125rem 0.375rem;
+    }
+  }
+`;
+
 interface Board {
   id: string;
   name: string;
@@ -171,19 +280,22 @@ export default function PinterestPage() {
 
   return (
     <div className="py-8 bg-gray-50 min-h-screen">
+      {/* Add the responsive styles */}
+      <style jsx global>{responsiveStyles}</style>
+      
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between items-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 flex items-center">
-            <svg className="h-8 w-8 text-red-600 mr-3" viewBox="0 0 24 24" fill="currentColor">
+        <div className="flex justify-between items-center mb-6 pb-2">
+          <div className="flex items-center">
+            <svg className="h-7 w-7 text-red-600 mr-2 page-icon" viewBox="0 0 24 24" fill="currentColor">
               <path d="M12 0a12 12 0 0 0-4.373 23.178c-.017-.976-.003-2.149.244-3.209.267-1.129 1.695-7.186 1.695-7.186s-.422-.846-.422-2.094c0-1.961 1.136-3.424 2.552-3.424 1.206 0 1.782.894 1.782 1.965 0 1.198-.768 2.988-1.163 4.645-.329 1.394.7 2.535 2.081 2.535 2.492 0 4.168-3.208 4.168-7.013 0-2.891-1.968-5.051-5.499-5.051-4.008 0-6.513 2.990-6.513 6.327 0 1.152.34 1.961.871 2.587.243.291.277.39.187.712-.63.24-.207.82-.268 1.048-.084.337-.357.456-.659.331-1.843-.756-2.702-2.785-2.702-5.066 0-3.764 3.173-8.279 9.469-8.279 5.068 0 8.394 3.666 8.394 7.599 0 5.203-2.889 9.095-7.148 9.095-1.43 0-2.773-.772-3.234-1.649l-.881 3.495c-.314 1.14-.96 2.282-1.542 3.163A12 12 0 1 0 12 0z"/>
             </svg>
-            Pinterest Accounts
-          </h1>
+            <h1 className="text-xl font-bold text-gray-900 page-title">Pinterest Accounts</h1>
+          </div>
           <button
             onClick={() => setShowAddForm(true)}
-            className="inline-flex items-center px-5 py-2.5 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors duration-200"
+            className="inline-flex items-center px-3 py-1 border border-transparent rounded text-sm font-medium text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-1 focus:ring-offset-1 focus:ring-red-500 transition-colors duration-200 add-button"
           >
-            <svg className="-ml-1 mr-2 h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+            <svg className="mr-1 h-4 w-4 add-button-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
               <path fillRule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clipRule="evenodd" />
             </svg>
             Add Account
@@ -194,8 +306,8 @@ export default function PinterestPage() {
         {showAddForm && (
           <div className="mb-8 bg-white shadow-lg rounded-xl overflow-hidden border border-gray-100">
             <div className="px-6 py-5">
-              <h3 className="text-xl font-semibold text-gray-900 mb-1">Add Pinterest Account</h3>
-              <div className="text-sm text-gray-500 mb-4">
+              <h3 className="text-xl font-semibold text-gray-900 mb-1 account-name">Add Pinterest Account</h3>
+              <div className="text-sm text-gray-500 mb-4 account-meta">
                 <p>Enter the Pinterest username to verify and add a new account. The account must exist in DynamoDB.</p>
               </div>
               <form className="flex flex-col sm:flex-row items-start sm:items-center gap-3" onSubmit={handleAddAccount}>
@@ -249,7 +361,7 @@ export default function PinterestPage() {
                 </div>
               </form>
               {error && (
-                <div className="mt-3 p-3 bg-red-50 border border-red-100 rounded-lg text-sm text-red-600">
+                <div className="mt-3 p-3 bg-red-50 border border-red-100 rounded-lg text-sm text-red-600 account-meta">
                   <div className="flex">
                     <svg className="h-5 w-5 text-red-500 mr-2 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -264,11 +376,8 @@ export default function PinterestPage() {
 
         {/* Loading State */}
         {isLoading && (
-          <div className="py-12 flex justify-center">
-            <svg className="animate-spin h-10 w-10 text-red-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-            </svg>
+          <div className="flex justify-center items-center py-12">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-700"></div>
           </div>
         )}
 
@@ -281,16 +390,16 @@ export default function PinterestPage() {
                   href={`/admin/pinterest/${account.id}/boards`}
                   className="block bg-white rounded-xl overflow-hidden shadow-md hover:shadow-lg transition-all duration-200 border border-gray-100 h-full"
                 >
-                  <div className="p-6">
+                  <div className="p-6 account-card">
                     <div className="flex items-center">
                       <div className="flex-shrink-0">
-                        <div className="h-14 w-14 rounded-full bg-gradient-to-br from-red-50 to-red-100 flex items-center justify-center text-red-600 font-bold border border-red-200">
+                        <div className="h-14 w-14 rounded-full bg-gradient-to-br from-red-50 to-red-100 flex items-center justify-center text-red-600 font-bold border border-red-200 account-avatar">
                           {account.username.charAt(0).toUpperCase()}
                         </div>
                       </div>
-                      <div className="ml-4 flex-1">
-                        <h3 className="text-lg font-medium text-gray-900">{account.username}</h3>
-                        <div className="flex items-center text-sm text-gray-500">
+                      <div className="ml-4 flex-1 account-info">
+                        <h3 className="text-lg font-medium text-gray-900 account-name">{account.username}</h3>
+                        <div className="flex items-center text-sm text-gray-500 account-meta">
                           <svg className="flex-shrink-0 mr-1.5 h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                           </svg>
@@ -298,7 +407,7 @@ export default function PinterestPage() {
                         </div>
                         {account.boards && account.boards.length > 0 && (
                           <div className="mt-1">
-                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 account-meta">
                               <svg className="-ml-0.5 mr-1.5 h-3 w-3 text-red-700" fill="currentColor" viewBox="0 0 20 20">
                                 <path fillRule="evenodd" d="M2 5a2 2 0 012-2h12a2 2 0 012 2v10a2 2 0 01-2 2H4a2 2 0 01-2-2V5zm3 1h10v8H5V6z" clipRule="evenodd" />
                               </svg>
@@ -312,20 +421,20 @@ export default function PinterestPage() {
                     {/* Account boards preview */}
                     {account.boards && account.boards.length > 0 && (
                       <div className="mt-4 pt-4 border-t border-gray-100">
-                        <h4 className="text-sm font-medium text-gray-700 mb-3 flex items-center">
+                        <h4 className="text-sm font-medium text-gray-700 mb-3 flex items-center board-section-title">
                           <svg className="mr-1.5 h-4 w-4 text-red-500" fill="currentColor" viewBox="0 0 20 20">
                             <path d="M5 3a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2V5a2 2 0 00-2-2H5zM5 11a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2v-2a2 2 0 00-2-2H5zM11 5a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V5zM11 13a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
                           </svg>
                           Boards
                         </h4>
-                        <div className="grid grid-cols-2 gap-2">
+                        <div className="grid grid-cols-2 gap-2 board-card-grid">
                           {account.boards.slice(0, 4).map(board => (
-                            <div key={board.id} className="bg-gray-50 px-3 py-2 rounded-lg text-xs font-medium text-gray-700 border border-gray-100 truncate">
+                            <div key={board.id} className="bg-gray-50 px-3 py-2 rounded-lg text-xs font-medium text-gray-700 border border-gray-100 truncate board-chip">
                               {board.name}
                             </div>
                           ))}
                           {account.boards.length > 4 && (
-                            <div className="bg-red-50 px-3 py-2 rounded-lg text-xs font-medium text-red-600 border border-red-100 flex items-center justify-center">
+                            <div className="bg-red-50 px-3 py-2 rounded-lg text-xs font-medium text-red-600 border border-red-100 flex items-center justify-center board-chip">
                               +{account.boards.length - 4} more
                             </div>
                           )}
@@ -360,17 +469,17 @@ export default function PinterestPage() {
                   <path d="M12 0a12 12 0 0 0-4.373 23.178c-.017-.976-.003-2.149.244-3.209.267-1.129 1.695-7.186 1.695-7.186s-.422-.846-.422-2.094c0-1.961 1.136-3.424 2.552-3.424 1.206 0 1.782.894 1.782 1.965 0 1.198-.768 2.988-1.163 4.645-.329 1.394.7 2.535 2.081 2.535 2.492 0 4.168-3.208 4.168-7.013 0-2.891-1.968-5.051-5.499-5.051-4.008 0-6.513 2.990-6.513 6.327 0 1.152.34 1.961.871 2.587.243.291.277.39.187.712-.63.24-.207.82-.268 1.048-.084.337-.357.456-.659.331-1.843-.756-2.702-2.785-2.702-5.066 0-3.764 3.173-8.279 9.469-8.279 5.068 0 8.394 3.666 8.394 7.599 0 5.203-2.889 9.095-7.148 9.095-1.43 0-2.773-.772-3.234-1.649l-.881 3.495c-.314 1.14-.96 2.282-1.542 3.163A12 12 0 1 0 12 0z"/>
                 </svg>
               </div>
-              <h3 className="mt-6 text-xl font-semibold text-gray-900">No Pinterest accounts</h3>
-              <p className="mt-2 text-sm text-gray-500 max-w-md mx-auto">
+              <h3 className="mt-6 text-xl font-semibold text-gray-900 account-name">No Pinterest accounts</h3>
+              <p className="mt-2 text-sm text-gray-500 max-w-md mx-auto account-meta">
                 Get started by adding a Pinterest account. You'll be able to manage boards and pins from your verified accounts.
               </p>
               <div className="mt-6">
                 <button
                   type="button"
                   onClick={() => setShowAddForm(true)}
-                  className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-lg shadow-sm text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors duration-200"
+                  className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-lg shadow-sm text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors duration-200 add-button"
                 >
-                  <svg className="-ml-1 mr-2 h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                  <svg className="-ml-1 mr-2 h-5 w-5 add-button-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
                     <path fillRule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clipRule="evenodd" />
                   </svg>
                   Add Pinterest Account

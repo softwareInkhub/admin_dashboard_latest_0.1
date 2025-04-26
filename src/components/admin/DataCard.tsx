@@ -105,15 +105,15 @@ const DataCard: React.FC<DataCardProps> = ({
   return (
     <>
       <div 
-        className={`bg-white rounded-lg shadow border ${selected ? 'border-blue-400 bg-blue-50' : 'border-gray-200'} p-2 hover:shadow-md transition cursor-pointer w-full relative h-12 flex items-center overflow-visible`}
+        className={`bg-white rounded-lg shadow border ${selected ? 'border-blue-400 bg-blue-50' : 'border-gray-200'} p-1.5 sm:p-2 hover:shadow-md transition cursor-pointer w-full relative h-10 sm:h-12 flex items-center overflow-visible`}
         onClick={() => setShowModal(true)}
       >
         {/* Left side controls */}
-        <div className="absolute top-0 bottom-0 left-0 w-12 flex items-center justify-center z-1">
+        <div className="absolute top-0 bottom-0 left-0 w-10 sm:w-12 flex items-center justify-center z-1">
           {/* Select Button */}
           <button
             onClick={handleSelect}
-            className={`w-6 h-6 rounded-full border ${
+            className={`w-5 h-5 sm:w-6 sm:h-6 rounded-full border ${
               selected 
                 ? 'bg-blue-500 border-blue-600 text-white' 
                 : 'bg-white border-gray-300 text-gray-500 hover:bg-gray-100'
@@ -121,7 +121,7 @@ const DataCard: React.FC<DataCardProps> = ({
             aria-label={selected ? 'Deselect item' : 'Select item'}
           >
             {selected && (
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-3 h-3 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
               </svg>
             )}
@@ -129,15 +129,15 @@ const DataCard: React.FC<DataCardProps> = ({
         </div>
 
         {/* Serial Number */}
-        <div className="absolute top-0 bottom-0 left-12 w-6 flex items-center justify-start">
+        <div className="absolute top-0 bottom-0 left-10 sm:left-12 w-5 sm:w-6 flex items-center justify-start">
           <span className="text-xs font-medium text-gray-500">#{serialNumber}</span>
         </div>
 
         {/* Data grid - aligned with header */}
-        <div className="flex pl-16 w-full overflow-visible">
+        <div className="flex pl-14 sm:pl-16 w-full overflow-visible">
           {displayFields.map((field) => (
-            <div key={field} className="flex-1 min-w-[200px] px-2 overflow-hidden">
-              <div className="text-sm font-medium text-gray-800 overflow-hidden text-ellipsis">
+            <div key={field} className="flex-1 min-w-[150px] sm:min-w-[200px] px-1 sm:px-2 overflow-hidden">
+              <div className="text-xs sm:text-sm font-medium text-gray-800 overflow-hidden text-ellipsis">
                 {formatValue(item[field])}
               </div>
             </div>
@@ -148,18 +148,18 @@ const DataCard: React.FC<DataCardProps> = ({
       {/* Modal */}
       {showModal && (
         <div className="fixed inset-0 z-50 overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
-          <div className="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+          <div className="flex items-end justify-center min-h-screen pt-4 px-2 sm:px-4 pb-20 text-center sm:block sm:p-0">
             <div className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" aria-hidden="true" onClick={() => setShowModal(false)}></div>
             
             <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
             
-            <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-3xl sm:w-full">
-              <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4 relative">
+            <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle w-full max-w-xs sm:max-w-lg md:max-w-2xl lg:max-w-3xl">
+              <div className="bg-white px-2 sm:px-4 pt-3 sm:pt-5 pb-3 sm:pb-4 relative">
                 {/* Top-right action buttons */}
-                <div className="absolute top-4 right-4 flex space-x-2">
+                <div className="absolute top-2 sm:top-4 right-2 sm:right-4 flex space-x-1 sm:space-x-2">
                   <button
                     type="button"
-                    className={`rounded-full p-2 ${copied 
+                    className={`rounded-full p-1.5 sm:p-2 ${copied 
                       ? 'bg-green-100 text-green-600 hover:bg-green-200' 
                       : 'bg-blue-50 text-blue-600 hover:bg-blue-100'} 
                       focus:outline-none transition-colors duration-200`}
@@ -167,35 +167,35 @@ const DataCard: React.FC<DataCardProps> = ({
                     title={copied ? "Copied!" : "Copy to clipboard"}
                   >
                     {copied ? (
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 sm:h-5 sm:w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
                       </svg>
                     ) : (
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 sm:h-5 sm:w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
                       </svg>
                     )}
                   </button>
                   <button
                     type="button"
-                    className="rounded-full p-2 bg-gray-50 text-gray-500 hover:bg-gray-100 focus:outline-none"
+                    className="rounded-full p-1.5 sm:p-2 bg-gray-50 text-gray-500 hover:bg-gray-100 focus:outline-none"
                     onClick={() => setShowModal(false)}
                     title="Close"
                   >
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 sm:h-5 sm:w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
                     </svg>
                   </button>
                 </div>
                 
-                <div className="sm:flex sm:items-start">
-                  <div className="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left w-full">
-                    <h3 className="text-lg leading-6 font-medium text-gray-900" id="modal-title">
-                      Item Details <span className="text-sm font-normal text-gray-500">(#{serialNumber})</span>
+                <div>
+                  <div className="mt-1 text-left w-full">
+                    <h3 className="text-base sm:text-lg leading-6 font-medium text-gray-900" id="modal-title">
+                      Item Details <span className="text-xs sm:text-sm font-normal text-gray-500">(#{serialNumber})</span>
                     </h3>
-                    <div className="mt-4 w-full">
-                      <div className="bg-gray-50 p-4 rounded-lg overflow-x-auto">
-                        <pre className="text-sm text-gray-800 whitespace-pre-wrap">
+                    <div className="mt-2 sm:mt-4 w-full">
+                      <div className="bg-gray-50 p-2 sm:p-4 rounded-lg overflow-x-auto">
+                        <pre className="text-xs sm:text-sm text-gray-800 whitespace-pre-wrap text-left">
                           {JSON.stringify(getFilteredItemData(), null, 2)}
                         </pre>
                       </div>

@@ -118,22 +118,22 @@ const CardView: React.FC<CardViewProps> = ({
 
       {/* Column Headers */}
       <div className="sticky top-0 z-10">
-        <div className="bg-gray-100 rounded-lg p-4 shadow-sm overflow-hidden">
+        <div className="bg-gray-100 rounded-lg p-2 sm:p-4 shadow-sm overflow-hidden">
           <div className="flex relative min-w-max w-full">
             {/* Select All button at left side of header */}
-            <div className="absolute left-0 top-0 bottom-0 w-12 flex items-center justify-center">
+            <div className="absolute left-0 top-0 bottom-0 w-10 sm:w-12 flex items-center justify-center">
               <div className="flex items-center gap-1">
                 <button
                   onClick={handleSelectAll}
                   title={selectedItems.size === items.length ? 'Deselect All Items' : 'Select All Items'}
-                  className={`w-6 h-6 rounded-full border ${
+                  className={`w-5 h-5 sm:w-6 sm:h-6 rounded-full border ${
                     selectedItems.size === items.length 
                       ? 'bg-blue-500 border-blue-600 text-white' 
                       : 'bg-white border-gray-300 text-gray-500 hover:bg-gray-100'
                   } flex items-center justify-center focus:outline-none`}
                 >
                   {selectedItems.size === items.length && (
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-3 h-3 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
                     </svg>
                   )}
@@ -143,15 +143,15 @@ const CardView: React.FC<CardViewProps> = ({
             </div>
 
             {/* Serial Number column - to align with data rows */}
-            <div className="absolute top-0 bottom-0 left-12 w-6 flex items-center justify-start">
+            <div className="absolute top-0 bottom-0 left-10 sm:left-12 w-5 sm:w-6 flex items-center justify-start">
               <span className="text-xs font-medium text-gray-500">#</span>
             </div>
 
             {/* Field names with left padding to make room for select button */}
-            <div className="pl-16 flex w-full">
+            <div className="pl-14 sm:pl-16 flex w-full">
               {displayFields.map((field) => (
-                <div key={field} className="flex-1 min-w-[200px] px-2">
-                  <span className="text-sm font-medium text-gray-700">{field}</span>
+                <div key={field} className="flex-1 min-w-[150px] sm:min-w-[200px] px-1 sm:px-2">
+                  <span className="text-xs sm:text-sm font-medium text-gray-700">{field}</span>
                 </div>
               ))}
             </div>
