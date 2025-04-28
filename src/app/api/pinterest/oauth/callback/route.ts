@@ -5,6 +5,9 @@ const PINTEREST_CLIENT_ID = process.env.PINTEREST_CLIENT_ID || '';
 const PINTEREST_CLIENT_SECRET = process.env.PINTEREST_CLIENT_SECRET || '';
 const PINTEREST_REDIRECT_URI = process.env.PINTEREST_REDIRECT_URI || '';
 
+// Mark the route as dynamic
+export const dynamic = 'force-dynamic';
+
 /**
  * Handle the Pinterest OAuth callback
  * This route will receive the authorization code from Pinterest,
@@ -13,13 +16,12 @@ const PINTEREST_REDIRECT_URI = process.env.PINTEREST_REDIRECT_URI || '';
  */
 export async function GET(request: NextRequest) {
   try {
-    // Get the authorization code from the URL query parameter
     const searchParams = request.nextUrl.searchParams;
     const code = searchParams.get('code');
-    
-    // If there is no code, redirect back with an error
+    const state = searchParams.get('state');
+
     if (!code) {
-      return NextResponse.redirect(`${request.nextUrl.origin}/admin/pinterest?error=Missing authorization code`);
+      return NextResponse.json({ error: 'No code provided' }, { status: 400 });
     }
     
     // Exchange the authorization code for an access token
@@ -39,7 +41,7 @@ export async function GET(request: NextRequest) {
     if (!tokenResponse.ok) {
       const errorData = await tokenResponse.json();
       console.error('Error exchanging code for token:', errorData);
-      return NextResponse.redirect(`${request.nextUrl.origin}/admin/pinterest?error=${encodeURIComponent('Failed to exchange authorization code for token')}`);
+      return NextResponse.json({ error: 'Failed to exchange authorization code for token' }, { status: 500 });
     }
     
     const tokenData = await tokenResponse.json();
@@ -54,7 +56,7 @@ export async function GET(request: NextRequest) {
     if (!userResponse.ok) {
       const errorData = await userResponse.json();
       console.error('Error fetching user data:', errorData);
-      return NextResponse.redirect(`${request.nextUrl.origin}/admin/pinterest?error=${encodeURIComponent('Failed to fetch user data')}`);
+      return NextResponse.json({ error: 'Failed to fetch user data' }, { status: 500 });
     }
     
     const userData = await userResponse.json();
@@ -87,6 +89,6 @@ export async function GET(request: NextRequest) {
     return response;
   } catch (error) {
     console.error('Error in Pinterest OAuth callback:', error);
-    return NextResponse.redirect(`${request.nextUrl.origin}/admin/pinterest?error=${encodeURIComponent('An unexpected error occurred')}`);
+    return NextResponse.json({ error: 'Failed to process OAuth callback' }, { status: 500 });
   }
 } 

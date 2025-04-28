@@ -1,20 +1,8 @@
-import { 
-  ListTablesCommand, 
-  DescribeTableCommand, 
-  ScanCommand 
-} from "@aws-sdk/client-dynamodb";
-import { 
-  ScanCommand as DocumentScanCommand,
-  QueryCommand
-} from "@aws-sdk/lib-dynamodb";
+import { DynamoDBClient, ListTablesCommand, DescribeTableCommand, KeySchemaElement } from '@aws-sdk/client-dynamodb';
+import { DynamoDBDocumentClient, ScanCommand as DocumentScanCommand, QueryCommand as DocumentQueryCommand } from '@aws-sdk/lib-dynamodb';
 import { client, docClient } from "./aws-config";
-import { 
-  cacheTableItems, 
-  getCachedTableItems, 
-  getCachedData, 
-  setCachedData, 
-  clearCacheByPattern 
-} from './dynamodb-cache-service';
+import { cacheTableItems, getCachedTableItems, clearCacheByPattern } from './dynamodb-cache-service';
+import { cacheData, getCachedData } from './disk-storage';
 
 /**
  * Gets a list of all DynamoDB tables
@@ -157,7 +145,7 @@ export async function queryTable(
       params.ExclusiveStartKey = startKey;
     }
 
-    const command = new QueryCommand(params);
+    const command = new DocumentQueryCommand(params);
     const response = await docClient.send(command);
     
     return {
@@ -192,6 +180,16 @@ export async function getTableStructure(tableName: string) {
   }
 }
 
+async function fetchTableDescription(tableName: string) {
+  try {
+    const command = new DescribeTableCommand({ TableName: tableName });
+    return await client.send(command);
+  } catch (error) {
+    console.error(`Error fetching table description for ${tableName}:`, error);
+    throw error;
+  }
+}
+
 /**
  * Fetch items from a DynamoDB table
  */
@@ -199,7 +197,11 @@ export async function fetchTableItems(tableName: string, limit: number = 100, la
   console.log(`Fetching items from table ${tableName} with limit ${limit}${lastEvaluatedKey ? ' and lastEvaluatedKey' : ''}`);
   
   // Prepare scan parameters
-  const params = {
+  const params: {
+    TableName: string;
+    Limit: number;
+    ExclusiveStartKey?: any;
+  } = {
     TableName: tableName,
     Limit: limit,
   };
@@ -211,7 +213,7 @@ export async function fetchTableItems(tableName: string, limit: number = 100, la
   try {
     // Get the key schema to identify primary key fields
     const tableDescription = await fetchTableDescription(tableName);
-    const keyFields = tableDescription?.Table?.KeySchema?.map(key => key.AttributeName) || [];
+    const keyFields = tableDescription?.Table?.KeySchema?.map((key: KeySchemaElement) => key.AttributeName || '') || [];
     
     // Try to get from cache first
     if (useCache) {
@@ -226,8 +228,8 @@ export async function fetchTableItems(tableName: string, limit: number = 100, la
     }
     
     // If not in cache or cache disabled, fetch from DynamoDB
-    const command = new ScanCommand(params);
-    const data = await client.send(command);
+    const command = new DocumentScanCommand(params);
+    const data = await docClient.send(command);
     
     console.log(`Retrieved ${data.Items?.length || 0} items from DynamoDB table ${tableName}`);
     

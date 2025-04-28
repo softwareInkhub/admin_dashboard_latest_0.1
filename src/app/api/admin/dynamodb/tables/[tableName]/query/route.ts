@@ -61,7 +61,11 @@ export async function POST(
       
       // Cache the results (only if this is the first page)
       if (!lastEvaluatedKey) {
-        await cacheQueryResults(tableName, queryParams, result);
+        await cacheQueryResults(tableName, queryParams, {
+          items: result.items,
+          lastEvaluatedKey: result.lastEvaluatedKey,
+          count: result.count || 0 // Ensure count is a number by providing a default value
+        });
       }
       
       queryResults = {

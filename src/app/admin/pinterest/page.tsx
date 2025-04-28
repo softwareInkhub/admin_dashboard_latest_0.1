@@ -283,7 +283,7 @@ export default function PinterestPage() {
       {/* Add the responsive styles */}
       <style jsx global>{responsiveStyles}</style>
       
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="w-full px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center mb-6 pb-2">
           <div className="flex items-center">
             <svg className="h-7 w-7 text-red-600 mr-2 page-icon" viewBox="0 0 24 24" fill="currentColor">

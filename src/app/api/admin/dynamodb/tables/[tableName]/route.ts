@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getTableDetails, scanTable } from '@/utils/dynamodb-service';
+import { KeySchemaElement } from '@aws-sdk/client-dynamodb';
 import {
   getCachedTableDetails,
   cacheTableDetails,
@@ -7,6 +8,16 @@ import {
   cacheTableItems,
   invalidateTableCache
 } from '@/utils/dynamodb-cache-service';
+
+// Define a consistent interface for items data
+interface ItemsData {
+  items: any[];
+  lastEvaluatedKey: any;
+  totalCount?: number;
+  scannedCount?: number;
+  timestamp: number;
+  isStale?: boolean;
+}
 
 // Get details and items for a specific table
 export async function GET(
@@ -98,16 +109,21 @@ export async function GET(
     }
     
     // Always try to get items from cache first, unless forcing refresh
-    let itemsData;
+    let itemsData: ItemsData | null = null;
     let itemsAreStale = false;
     
     if (!forceRefresh) {
-      itemsData = await getCachedTableItems(tableName, cacheParams);
-      if (itemsData) {
+      const cachedData = await getCachedTableItems(tableName, cacheParams);
+      if (cachedData) {
         console.log(`[DATA SOURCE] Items loaded from DISK CACHE`);
+        itemsData = {
+          ...cachedData,
+          totalCount: cachedData.items.length,
+          scannedCount: cachedData.items.length
+        };
         
         // Check if items are stale
-        if (itemsData.isStale) {
+        if (cachedData.isStale) {
           itemsAreStale = true;
         }
       }
@@ -144,7 +160,7 @@ export async function GET(
             cacheParams,
             items,
             newLastKey,
-            details?.KeySchema?.map(key => key.AttributeName) || []
+            details?.KeySchema?.map((key: KeySchemaElement) => key.AttributeName || '') || []
           );
         } else {
           console.warn(`Data too large to cache (${sizeInMB.toFixed(2)}MB) for table ${tableName}, exceeds ${cacheThreshold}MB threshold`);
@@ -169,7 +185,7 @@ export async function GET(
                 cacheParams,
                 items,
                 newLastKey,
-                details?.KeySchema?.map(key => key.AttributeName) || []
+                details?.KeySchema?.map((key: KeySchemaElement) => key.AttributeName || '') || []
               );
               console.log(`[BACKGROUND] Successfully refreshed ${items.length} items for ${tableName}`);
             }

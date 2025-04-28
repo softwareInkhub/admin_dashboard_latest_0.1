@@ -514,12 +514,6 @@ export async function POST(request: NextRequest) {
         // Get the key for the next batch
         lastEvaluatedKey = scanResponse.LastEvaluatedKey;
         
-        // Optional: add a limit to the number of batches for safety
-        if (batchNumber >= 20) {
-          console.log('Reached maximum number of batches (20). Stopping scan to prevent excessive resource usage.');
-          break;
-        }
-        
       } while (lastEvaluatedKey);
     } catch (error) {
       console.error(`Error fetching pins from table ${foundTableName}:`, error);

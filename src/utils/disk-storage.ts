@@ -126,8 +126,13 @@ export async function getCachedData<T>(key: string): Promise<T | null> {
         const metaContent = await fsPromises.readFile(metaFile, 'utf8');
         const metadata = JSON.parse(metaContent);
         
-        // Note: TTL check disabled - we're no longer automatically expiring cache
-        // The timestamp and TTL are kept in the metadata for informational purposes
+        // Check if cache has expired
+        const isExpired = (Date.now() - metadata.timestamp) > (metadata.ttl * 1000);
+        if (isExpired) {
+          console.log(`Cache expired for ${key}, deleting...`);
+          await deleteCachedData(key);
+          return null;
+        }
         
         // Get chunks directory
         const chunksDir = metadata.chunksDir || path.join(effectiveCacheDir, `${safeKey}-chunks`);
@@ -154,15 +159,20 @@ export async function getCachedData<T>(key: string): Promise<T | null> {
         console.error(`Error reading chunked cache for ${key}:`, error);
         return null;
       }
-    } 
+    }
     // Check for single file data
     else if (await fileExists(cacheFile)) {
       try {
         const buffer = await fsPromises.readFile(cacheFile);
         const data = await decompressData(buffer);
         
-        // Note: TTL check disabled - we're no longer automatically expiring cache
-        // The timestamp and TTL are kept in the metadata for informational purposes
+        // Check if cache has expired
+        const isExpired = (Date.now() - data.timestamp) > (data.ttl * 1000);
+        if (isExpired) {
+          console.log(`Cache expired for ${key}, deleting...`);
+          await deleteCachedData(key);
+          return null;
+        }
         
         return data.data;
       } catch (error) {

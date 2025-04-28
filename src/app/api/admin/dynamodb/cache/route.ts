@@ -1,54 +1,27 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { 
-  getCacheStats, 
-  invalidateAllCache 
-} from '@/utils/dynamodb-cache-service';
-import { getRedisStatus } from '@/utils/redis-client';
+import { clearCacheByPattern } from '@/utils/disk-storage';
 
-// Get cache statistics and status
-export async function GET(req: NextRequest) {
+export async function POST(request: NextRequest) {
   try {
-    const cacheStats = await getCacheStats();
-    const isRedisAvailable = getRedisStatus();
+    const { pattern } = await request.json();
+    
+    if (!pattern) {
+      return NextResponse.json(
+        { error: 'Cache pattern is required' },
+        { status: 400 }
+      );
+    }
+    
+    await clearCacheByPattern(pattern);
     
     return NextResponse.json({
-      redis: {
-        status: isRedisAvailable ? 'connected' : 'disconnected'
-      },
-      stats: cacheStats || {
-        hits: 0,
-        misses: 0,
-        timestamp: Date.now(),
-        tableStats: {}
-      }
-    }, { status: 200 });
-  } catch (error: any) {
-    console.error('Error fetching cache stats:', error);
+      success: true,
+      message: `Cache cleared for pattern: ${pattern}`
+    });
+  } catch (error) {
+    console.error('Error clearing cache:', error);
     return NextResponse.json(
-      { 
-        error: 'Failed to fetch cache statistics',
-        message: error.message || 'Unknown error'
-      },
-      { status: 500 }
-    );
-  }
-}
-
-// Clear all DynamoDB cache
-export async function DELETE(req: NextRequest) {
-  try {
-    await invalidateAllCache();
-    
-    return NextResponse.json({
-      message: 'All DynamoDB cache successfully cleared'
-    }, { status: 200 });
-  } catch (error: any) {
-    console.error('Error clearing all cache:', error);
-    return NextResponse.json(
-      { 
-        error: 'Failed to clear cache',
-        message: error.message || 'Unknown error'
-      },
+      { error: 'Failed to clear cache' },
       { status: 500 }
     );
   }

@@ -56,8 +56,9 @@ export async function POST(request: Request) {
             console.log(`Found account in table ${tableName} using query`);
             break;
           }
-        } catch (queryError) {
-          console.log(`Query failed on table ${tableName}, falling back to scan: ${queryError.message}`);
+        } catch (error: unknown) {
+          const queryError = error as Error;
+          console.log(`Query failed on table ${tableName}, falling back to scan: ${queryError.message || 'Unknown error'}`);
         }
 
         // If query fails or returns no results, try a scan
@@ -74,8 +75,9 @@ export async function POST(request: Request) {
           console.log(`Found account in table ${tableName} using scan`);
           break;
         }
-      } catch (tableError) {
-        console.error(`Error searching table ${tableName}:`, tableError);
+      } catch (error: unknown) {
+        const tableError = error as Error;
+        console.error(`Error searching table ${tableName}:`, tableError.message || 'Unknown error');
       }
     }
 
@@ -91,12 +93,13 @@ export async function POST(request: Request) {
       account
     });
 
-  } catch (error) {
-    console.error('Error fetching Pinterest account:', error);
+  } catch (error: unknown) {
+    const err = error as Error;
+    console.error('Error fetching Pinterest account:', err.message || 'Unknown error');
     return NextResponse.json({
       success: false,
       message: 'Failed to fetch Pinterest account',
-      error: error instanceof Error ? error.message : 'Unknown error'
+      error: err.message || 'Unknown error'
     }, { status: 500 });
   }
 } 

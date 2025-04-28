@@ -14,7 +14,7 @@ const CACHE_KEYS = {
 };
 
 // Cache TTL configuration from environment or defaults
-const DEFAULT_TTL = parseInt(process.env.REDIS_CACHE_TTL || '3600', 10);
+const DEFAULT_TTL = parseInt(process.env.CACHE_TTL || '3600', 10);
 const TABLE_LIST_TTL = parseInt(process.env.TABLE_LIST_TTL || '1800', 10); // 30 minutes for table list
 const TABLE_DETAILS_TTL = parseInt(process.env.TABLE_DETAILS_TTL || '3600', 10); // 1 hour for table details
 const TABLE_ITEMS_TTL = parseInt(process.env.TABLE_ITEMS_TTL || '1800', 10); // 30 minutes for table items
@@ -625,4 +625,7 @@ export async function invalidateTableCache(tableName: string): Promise<void> {
  */
 export async function invalidateAllCache(): Promise<void> {
   await clearCacheByPattern('dynamodb:*');
-} 
+}
+
+// Export the clearCacheByPattern function
+export { clearCacheByPattern }; 

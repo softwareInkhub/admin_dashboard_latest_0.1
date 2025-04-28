@@ -210,7 +210,7 @@ export default function BoardsPage({ params }: { params: { accountId: string } }
       {/* Add the responsive styles */}
       <style jsx global>{responsiveStyles}</style>
       
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="w-full px-4 sm:px-6 lg:px-8">
         <div className="pb-5 border-b border-gray-200 sm:flex sm:items-center sm:justify-between mb-6">
           <h1 className="text-2xl font-semibold text-gray-900 board-title">
             Pinterest Boards

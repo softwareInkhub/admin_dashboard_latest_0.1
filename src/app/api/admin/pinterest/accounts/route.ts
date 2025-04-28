@@ -17,6 +17,37 @@ import { transformDynamoDBJson } from '@/utils/dynamoUtils';
 // Table name for Pinterest accounts
 const TABLE_NAME = 'pinterest_inkhub_accounts';
 
+// Define types for our data structures
+interface PinterestBoard {
+  id?: string;
+  name?: string;
+  url?: string;
+  description?: string;
+}
+
+interface PinterestAccountData {
+  id?: string;
+  username: string;
+  createdAt?: string;
+  boards?: PinterestBoard[];
+}
+
+interface DynamoDBAccountItem {
+  id: { S: string };
+  username: { S: string };
+  createdAt: { S: string };
+  boards?: {
+    L: Array<{
+      M: {
+        id: { S: string };
+        name: { S: string };
+        url?: { S: string };
+        description?: { S: string };
+      }
+    }>
+  };
+}
+
 // Initialize DynamoDB clients
 const client = new DynamoDBClient({
   region: process.env.AWS_REGION || 'us-east-1',
@@ -103,7 +134,7 @@ export async function GET() {
 // POST: Save a new Pinterest account
 export async function POST(request: NextRequest) {
   try {
-    const data = await request.json();
+    const data: PinterestAccountData = await request.json();
     
     if (!data.username) {
       return NextResponse.json(
@@ -118,7 +149,7 @@ export async function POST(request: NextRequest) {
     const createdAt = data.createdAt || new Date().toISOString();
     
     // Prepare the item for DynamoDB
-    const accountItem = {
+    const accountItem: DynamoDBAccountItem = {
       id: { S: accountId },
       username: { S: data.username },
       createdAt: { S: createdAt }
@@ -127,7 +158,7 @@ export async function POST(request: NextRequest) {
     // Add boards if they exist
     if (data.boards && Array.isArray(data.boards)) {
       accountItem.boards = { 
-        L: data.boards.map(board => ({
+        L: data.boards.map((board: PinterestBoard) => ({
           M: {
             id: { S: board.id || uuidv4() },
             name: { S: board.name || 'Untitled Board' },

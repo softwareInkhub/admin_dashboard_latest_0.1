@@ -1,35 +1,71 @@
-import { getRedisClient } from './redis-client';
+import { cacheData, getCachedData, deleteCachedData, clearCacheByPattern } from './disk-storage';
+
+// Cache TTL configuration
+const DEFAULT_TTL = parseInt(process.env.CACHE_TTL || '3600', 10);
 
 /**
- * Check if Redis is available
- * @returns true if Redis is available, false otherwise
+ * Cache data with a key and optional TTL
  */
-export async function isRedisAvailable(): Promise<boolean> {
-  try {
-    const redis = getRedisClient();
-    const pong = await redis.ping();
-    return pong === 'PONG';
-  } catch (error) {
-    console.error('Redis not available:', error);
-    return false;
-  }
+export async function cache(key: string, data: any, ttl: number = DEFAULT_TTL): Promise<void> {
+  await cacheData(key, data, ttl);
 }
 
 /**
- * Get the health status of Redis
- * @returns An object with the Redis status and latency
+ * Get cached data by key
  */
-export async function getRedisHealth(): Promise<{ available: boolean; latency?: number }> {
-  try {
-    const start = Date.now();
-    const available = await isRedisAvailable();
-    const latency = Date.now() - start;
-    
-    return {
-      available,
-      latency: available ? latency : undefined
-    };
-  } catch (error) {
-    return { available: false };
-  }
+export async function getCached<T>(key: string): Promise<T | null> {
+  return await getCachedData<T>(key);
+}
+
+/**
+ * Delete cached data by key
+ */
+export async function deleteCached(key: string): Promise<void> {
+  await deleteCachedData(key);
+}
+
+/**
+ * Clear cache by pattern
+ */
+export async function clearCache(pattern: string): Promise<void> {
+  await clearCacheByPattern(pattern);
+}
+
+/**
+ * Get cache statistics
+ */
+export async function getCacheStats(): Promise<{
+  hits: number;
+  misses: number;
+  timestamp: number;
+}> {
+  const stats = await getCachedData<{
+    hits: number;
+    misses: number;
+    timestamp: number;
+  }>('cache:stats') || {
+    hits: 0,
+    misses: 0,
+    timestamp: Date.now()
+  };
+  
+  return stats;
+}
+
+/**
+ * Track cache hit
+ */
+export async function trackCacheHit(): Promise<void> {
+  const stats = await getCacheStats();
+  stats.hits++;
+  await cache('cache:stats', stats);
+}
+
+/**
+ * Track cache miss
+ */
+export async function trackCacheMiss(): Promise<void> {
+  const stats = await getCacheStats();
+  stats.misses++;
+  await cache('cache:stats', stats);
 } 
