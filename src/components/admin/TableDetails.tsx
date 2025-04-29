@@ -558,7 +558,7 @@ export const TableDetails: React.FC<TableDetailsProps> = ({
                           Clear
                         </button>
                       )}
-                    </div>
+                    </div> 
                   )}
                 </div>
               </div>
