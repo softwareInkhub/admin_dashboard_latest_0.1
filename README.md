@@ -1,170 +1,161 @@
-# DynamoDB Admin Application
+# DynamoDB Admin & Pinterest Board Manager
 
-A Next.js application for managing and viewing DynamoDB tables with advanced caching capabilities.
+A Next.js application for managing and visualizing DynamoDB tables, with advanced disk-based caching and Pinterest board/account integration.
+
+---
 
 ## Architecture Overview
 
-The application follows a multi-layered architecture with the following components:
+The application is built with a multi-layered architecture:
 
 1. **Frontend Layer (React/Next.js)**
-   - React components for UI rendering
-   - Next.js API routes for server-side operations
-   - Client-side state management
+   - UI for managing Pinterest accounts and boards
+   - Table and pin visualization
+   - Account creation and verification flows
 
-2. **API Layer**
+2. **API Layer (Next.js API routes)**
    - RESTful endpoints for DynamoDB operations
-   - Cache management endpoints
-   - Background refresh handlers
+   - Pinterest account and board management
+   - Disk-based cache management
 
-3. **Cache Layer (Redis)**
-   - Redis client for caching operations
-   - Data compression and chunking
-   - Cache invalidation mechanisms
+3. **Cache Layer (Disk Storage)**
+   - Caches DynamoDB data on disk for fast access
+   - Implements stale-while-revalidate and TTL
+   - Handles cache invalidation and background refresh
 
 4. **DynamoDB Layer**
-   - AWS DynamoDB client
-   - Table operations
-   - Query execution
+   - AWS DynamoDB client (using IAM roles on EC2)
+   - Table and item operations
+   - Query and scan support
 
-## Data Flow Diagram
+---
 
-```mermaid
-graph TD
-    A[Client] -->|Request| B[Next.js API Route]
-    B -->|Check Cache| C[Redis Cache]
-    C -->|Cache Hit| D[Return Cached Data]
-    C -->|Cache Miss| E[DynamoDB]
-    E -->|Fetch Data| F[Cache Data in Redis]
-    F -->|Return| D
-    D -->|Response| A
-    
-    subgraph Background Operations
-        G[Stale Data Check] -->|If Stale| H[Background Refresh]
-        H -->|Update Cache| C
-    end
-```
+## Data Flow: DynamoDB, Caching, and UI
 
-## Key Components
+### 1. Fetching Table Data
+- When a user requests data (e.g., Pinterest boards or pins), the API first checks the disk cache.
+- If cached data is available and fresh, it is returned immediately.
+- If the cache is missing or stale, the API fetches data from DynamoDB, updates the cache, and returns the data.
+- The cache is stored on disk (not Redis), using structured keys and TTLs for each data type.
 
-### 1. Frontend Components
+### 2. Caching Mechanics
+- **Disk-based cache**: Data is serialized and stored in files on disk, with metadata for TTL and staleness.
+- **Stale-While-Revalidate**: If cached data is stale, it is returned immediately, and a background refresh is triggered to update the cache from DynamoDB.
+- **Cache Keys**: Keys are structured by table, query, and parameters to avoid collisions.
+- **Cache Invalidation**: Manual or automatic invalidation is supported via API endpoints or TTL expiry.
+- **Cache Stats**: The app tracks cache hits, misses, and stale hits for monitoring.
 
-- **TableDetails**: Main component for displaying table information
-- **DataCard**: Component for displaying individual items
-- **CardView**: Grid view of data cards
-- **CacheStats**: Component for displaying cache statistics
+### 3. Pinterest Account Creation & Verification
+- **Account Creation**:
+  - User enters a Pinterest username in the UI.
+  - The API verifies the account by scanning the relevant DynamoDB board table for a matching username.
+  - If a match is found, the account and its boards are loaded into the UI and cached on disk.
+  - If the board table for that account has not been uploaded to DynamoDB, account creation will fail (ensuring only valid Pinterest accounts are added).
+- **Data Loading**:
+  - When an account is loaded, all its boards and pins are fetched from DynamoDB (with caching) and displayed in a responsive, masonry-style UI.
+  - The first item in the board table is queried to verify the username and load associated data.
 
-### 2. Cache Service
+### 4. Pinterest Board & Pin Management
+- Boards and pins are visualized using a masonry layout for a Pinterest-like experience.
+- Pin data is fetched from DynamoDB, cached on disk, and displayed with support for search, sort, and filter.
+- The UI supports modal previews, tag filtering, and responsive layouts.
 
-The cache service implements several key features:
+---
 
-- **Stale-While-Revalidate Pattern**
-  - Returns stale data immediately
-  - Refreshes data in background
-  - Configurable stale thresholds
+## Caching Implementation Details
 
-- **Data Chunking**
-  - Splits large datasets into 512KB chunks
-  - Compresses data using zlib
-  - Efficient network transfer
+- **Location**: All cache files are stored on disk (see `src/utils/disk-storage.ts`).
+- **Structure**: Each cache entry includes the data, a timestamp, and TTL metadata.
+- **Stale-While-Revalidate**: When a cache entry is stale, it is returned immediately, and a background refresh is triggered to update the cache asynchronously.
+- **Cache Keys**: Keys are generated based on table name, query parameters, and data type (e.g., `dynamodb:table:accounts:items`).
+- **Invalidation**: Cache can be invalidated manually via API or automatically via TTL expiry.
+- **Stats**: The app tracks cache hits, misses, and stale hits for each table and query.
+- **Performance**: Disk caching provides fast access for repeated queries and reduces DynamoDB costs.
 
-- **Cache Keys**
-  - Structured naming convention
-  - Different TTLs for different data types
-  - Pattern-based invalidation
+---
 
-### 3. Redis Client
+## Error Handling & Monitoring
 
-The Redis client handles:
+- **DynamoDB Errors**: All DynamoDB operations are wrapped in try/catch blocks, with detailed error logging and fallback to mock data if needed.
+- **Cache Errors**: Disk I/O errors are handled gracefully, with fallback to direct DynamoDB queries if the cache is unavailable.
+- **Monitoring**: The app exposes cache statistics and health metrics in the UI for transparency and debugging.
 
-- Connection management
-- Data compression
-- Chunking mechanism
-- Error handling
-- Connection pooling
+---
 
-### 4. API Routes
+## Project Features
 
-Key API endpoints:
+- **DynamoDB Table Management**: List, scan, and query tables; view table details and items.
+- **Pinterest Account Management**: Add, verify, and view Pinterest accounts and boards.
+- **Pin Visualization**: Responsive, masonry-style layout for pins, with search, sort, and filter.
+- **Disk-Based Caching**: Fast, persistent caching of DynamoDB data with stale-while-revalidate.
+- **Background Refresh**: Automatic cache refresh in the background for stale data.
+- **Cache Stats**: Real-time cache hit/miss/stale statistics in the UI.
+- **Error Handling**: Robust error handling for DynamoDB and cache operations.
+- **EC2/IAM Integration**: Secure AWS access using IAM roles (no hardcoded credentials).
 
-- `/api/admin/dynamodb/tables/[tableName]`
-  - GET: Fetch table details and items
-  - DELETE: Invalidate cache
-- `/api/admin/cache/warmup`
-  - POST: Prefetch popular data
+---
 
-## Data Flow Process
+## How to Use
 
-1. **Initial Request**
-   - Client requests table data
-   - API route checks Redis cache
-   - Returns cached data if available
+1. **Install dependencies**:
+   ```bash
+   npm install
+   # or
+   yarn install
+   ```
+2. **Run the development server**:
+   ```bash
+   npm run dev
+   # or
+   yarn dev
+   ```
+3. **Access the app**:
+   Open [http://localhost:3000](http://localhost:3000) in your browser.
 
-2. **Cache Miss**
-   - Fetches data from DynamoDB
-   - Caches data in Redis
-   - Returns data to client
+4. **Add a Pinterest Account**:
+   - Go to the Pinterest Accounts page.
+   - Enter a username and click "Verify & Add".
+   - The app will verify the account by querying DynamoDB and load all boards/pins if found.
 
-3. **Stale Data**
-   - Returns stale data immediately
-   - Triggers background refresh
-   - Updates cache asynchronously
+5. **View Boards and Pins**:
+   - Click on an account to view its boards.
+   - Click on a board to view pins in a masonry layout.
+   - Use search, sort, and filter to explore pins.
 
-4. **Background Operations**
-   - Monitors cache health
-   - Prefetches popular data
-   - Maintains cache statistics
+6. **Cache Management**:
+   - The app automatically caches all DynamoDB data on disk.
+   - Stale data is refreshed in the background.
+   - Cache stats and invalidation options are available in the UI.
 
-## Configuration
+---
 
-The application uses environment variables for configuration:
+## Environment Variables
 
-- `REDIS_URL`: Redis connection string
-- `TABLE_LIST_TTL`: TTL for table list (default: 30 minutes)
-- `TABLE_DETAILS_TTL`: TTL for table details (default: 1 hour)
-- `TABLE_ITEMS_TTL`: TTL for table items (default: 30 minutes)
-- `QUERY_RESULTS_TTL`: TTL for query results (default: 15 minutes)
-- `STATS_TTL`: TTL for cache statistics (default: 24 hours)
-- `STALE_THRESHOLD`: Threshold for stale data (default: 75%)
+- `AWS_REGION`: AWS region for DynamoDB
+- `CACHE_TTL`: Default cache TTL (in seconds)
+- `TABLE_LIST_TTL`, `TABLE_DETAILS_TTL`, `TABLE_ITEMS_TTL`, `QUERY_RESULTS_TTL`, `STATS_TTL`, `STALE_THRESHOLD`: Fine-tune cache behavior
 
-## Performance Optimizations
+---
 
-1. **Data Compression**
-   - Uses zlib for compression
-   - Reduces network transfer size
-   - Improves cache efficiency
+## Further Details
 
-2. **Chunking**
-   - 512KB chunk size
-   - Parallel processing
-   - Memory optimization
+- **No Account Deletion**: For data safety, account deletion is disabled in both the UI and API.
+- **Automatic Table Creation**: If a required DynamoDB table does not exist, the app will attempt to create it automatically.
+- **IAM Role Usage**: The app is designed to run securely on EC2 with IAM roles, avoiding hardcoded AWS credentials.
+- **Extensible Caching**: The disk cache can be extended or replaced with Redis or another backend if needed.
+- **Background Tasks**: Background refresh and cache maintenance are handled asynchronously for performance.
 
-3. **Connection Pooling**
-   - Reuses Redis connections
-   - Reduces connection overhead
-   - Improves response times
+---
 
-4. **Background Refresh**
-   - Non-blocking operations
-   - Stale-while-revalidate
-   - Improved user experience
+## Contributing
 
-## Error Handling
+Pull requests and issues are welcome! Please open an issue for bugs or feature requests.
 
-The application implements robust error handling:
+---
 
-- Redis connection failures
-- DynamoDB operation errors
-- Cache invalidation issues
-- Background refresh failures
+## License
 
-## Monitoring
-
-Cache performance is monitored through:
-
-- Hit/miss statistics
-- Stale data tracking
-- Per-table statistics
-- Background refresh metrics
+MIT
 
 # Next.js Project
 
@@ -514,5 +505,4555 @@ Create a `.env.local` file in the root directory and add the following variables
 NEXT_PUBLIC_PINTEREST_CLIENT_ID=your_pinterest_client_id
 PINTEREST_CLIENT_SECRET=your_pinterest_client_secret
 NEXT_PUBLIC_PINTEREST_REDIRECT_URI=http://localhost:3000/pinterest/oauth-callback
-``` #   A d m i n - D a s h b o a r d  
- 
+```
+
+# Pinterest Board Manager
+
+This section provides detailed information about the Pinterest board manager feature of the application.
+
+## Features
+
+- **Board Management**: Users can view and manage their Pinterest boards.
+- **Pin Management**: Users can view and manage their pins on boards.
+- **Search and Filter**: Users can search and filter boards and pins.
+- **Responsive Layout**: Pins are displayed in a responsive, masonry-style layout.
+
+## Usage
+
+1. **Accessing the Pinterest Boards Page**:
+   - Navigate to the Pinterest Boards section in the application.
+   - This section allows users to view and manage their Pinterest boards.
+
+2. **Viewing Boards**:
+   - Users can click on a board to view pins in a masonry layout.
+   - The layout is designed to be responsive and Pinterest-like.
+
+3. **Managing Pins**:
+   - Users can manage pins on a board by clicking on the pin and using the provided options.
+   - This includes actions like editing, deleting, or adding new pins.
+
+4. **Searching and Filtering**:
+   - Users can search for specific boards or pins using the search bar.
+   - Filters can be applied to narrow down the results.
+
+## Implementation Details
+
+- **Data Retrieval**: Pins are fetched from DynamoDB and cached on disk.
+- **Layout**: Pins are displayed in a masonry layout for a Pinterest-like experience.
+- **Search and Filter**: Pins are searchable and filterable based on various criteria.
+
+## Error Handling
+
+- **DynamoDB Errors**: All DynamoDB operations are wrapped in try/catch blocks, with detailed error logging and fallback to mock data if needed.
+- **Cache Errors**: Disk I/O errors are handled gracefully, with fallback to direct DynamoDB queries if the cache is unavailable.
+- **Monitoring**: The app exposes cache statistics and health metrics in the UI for transparency and debugging.
+
+## Pinterest Account Management
+
+This section provides detailed information about the Pinterest account management feature of the application.
+
+## Features
+
+- **Account Verification**: Users can verify their Pinterest account.
+- **Account Management**: Users can manage multiple Pinterest accounts.
+
+## Usage
+
+1. **Adding a Pinterest Account**:
+   - Navigate to the Pinterest Accounts section in the application.
+   - Enter a Pinterest username and click "Verify & Add".
+   - The app will verify the account by querying DynamoDB and load all boards/pins if found.
+
+2. **Managing Multiple Accounts**:
+   - Users can manage multiple Pinterest accounts in the application.
+   - This includes adding new accounts and verifying existing ones.
+
+## Implementation Details
+
+- **Data Retrieval**: Accounts and boards are fetched from DynamoDB and cached on disk.
+- **Verification**: The app verifies the account by querying DynamoDB.
+- **Account Management**: Users can manage multiple accounts in the application.
+
+## Error Handling
+
+- **DynamoDB Errors**: All DynamoDB operations are wrapped in try/catch blocks, with detailed error logging and fallback to mock data if needed.
+- **Cache Errors**: Disk I/O errors are handled gracefully, with fallback to direct DynamoDB queries if the cache is unavailable.
+- **Monitoring**: The app exposes cache statistics and health metrics in the UI for transparency and debugging.
+
+## Pinterest Board Manager
+
+This section provides detailed information about the Pinterest board manager feature of the application.
+
+## Features
+
+- **Board Management**: Users can view and manage their Pinterest boards.
+- **Pin Management**: Users can view and manage their pins on boards.
+- **Search and Filter**: Users can search and filter boards and pins.
+- **Responsive Layout**: Pins are displayed in a responsive, masonry-style layout.
+
+## Usage
+
+1. **Accessing the Pinterest Boards Page**:
+   - Navigate to the Pinterest Boards section in the application.
+   - This section allows users to view and manage their Pinterest boards.
+
+2. **Viewing Boards**:
+   - Users can click on a board to view pins in a masonry layout.
+   - The layout is designed to be responsive and Pinterest-like.
+
+3. **Managing Pins**:
+   - Users can manage pins on a board by clicking on the pin and using the provided options.
+   - This includes actions like editing, deleting, or adding new pins.
+
+4. **Searching and Filtering**:
+   - Users can search for specific boards or pins using the search bar.
+   - Filters can be applied to narrow down the results.
+
+## Implementation Details
+
+- **Data Retrieval**: Pins are fetched from DynamoDB and cached on disk.
+- **Layout**: Pins are displayed in a masonry layout for a Pinterest-like experience.
+- **Search and Filter**: Pins are searchable and filterable based on various criteria.
+
+## Error Handling
+
+- **DynamoDB Errors**: All DynamoDB operations are wrapped in try/catch blocks, with detailed error logging and fallback to mock data if needed.
+- **Cache Errors**: Disk I/O errors are handled gracefully, with fallback to direct DynamoDB queries if the cache is unavailable.
+- **Monitoring**: The app exposes cache statistics and health metrics in the UI for transparency and debugging.
+
+## Pinterest Account Management
+
+This section provides detailed information about the Pinterest account management feature of the application.
+
+## Features
+
+- **Account Verification**: Users can verify their Pinterest account.
+- **Account Management**: Users can manage multiple Pinterest accounts.
+
+## Usage
+
+1. **Adding a Pinterest Account**:
+   - Navigate to the Pinterest Accounts section in the application.
+   - Enter a Pinterest username and click "Verify & Add".
+   - The app will verify the account by querying DynamoDB and load all boards/pins if found.
+
+2. **Managing Multiple Accounts**:
+   - Users can manage multiple Pinterest accounts in the application.
+   - This includes adding new accounts and verifying existing ones.
+
+## Implementation Details
+
+- **Data Retrieval**: Accounts and boards are fetched from DynamoDB and cached on disk.
+- **Verification**: The app verifies the account by querying DynamoDB.
+- **Account Management**: Users can manage multiple accounts in the application.
+
+## Error Handling
+
+- **DynamoDB Errors**: All DynamoDB operations are wrapped in try/catch blocks, with detailed error logging and fallback to mock data if needed.
+- **Cache Errors**: Disk I/O errors are handled gracefully, with fallback to direct DynamoDB queries if the cache is unavailable.
+- **Monitoring**: The app exposes cache statistics and health metrics in the UI for transparency and debugging.
+
+# Pinterest Board Manager
+
+This section provides detailed information about the Pinterest board manager feature of the application.
+
+## Features
+
+- **Board Management**: Users can view and manage their Pinterest boards.
+- **Pin Management**: Users can view and manage their pins on boards.
+- **Search and Filter**: Users can search and filter boards and pins.
+- **Responsive Layout**: Pins are displayed in a responsive, masonry-style layout.
+
+## Usage
+
+1. **Accessing the Pinterest Boards Page**:
+   - Navigate to the Pinterest Boards section in the application.
+   - This section allows users to view and manage their Pinterest boards.
+
+2. **Viewing Boards**:
+   - Users can click on a board to view pins in a masonry layout.
+   - The layout is designed to be responsive and Pinterest-like.
+
+3. **Managing Pins**:
+   - Users can manage pins on a board by clicking on the pin and using the provided options.
+   - This includes actions like editing, deleting, or adding new pins.
+
+4. **Searching and Filtering**:
+   - Users can search for specific boards or pins using the search bar.
+   - Filters can be applied to narrow down the results.
+
+## Implementation Details
+
+- **Data Retrieval**: Pins are fetched from DynamoDB and cached on disk.
+- **Layout**: Pins are displayed in a masonry layout for a Pinterest-like experience.
+- **Search and Filter**: Pins are searchable and filterable based on various criteria.
+
+## Error Handling
+
+- **DynamoDB Errors**: All DynamoDB operations are wrapped in try/catch blocks, with detailed error logging and fallback to mock data if needed.
+- **Cache Errors**: Disk I/O errors are handled gracefully, with fallback to direct DynamoDB queries if the cache is unavailable.
+- **Monitoring**: The app exposes cache statistics and health metrics in the UI for transparency and debugging.
+
+## Pinterest Account Management
+
+This section provides detailed information about the Pinterest account management feature of the application.
+
+## Features
+
+- **Account Verification**: Users can verify their Pinterest account.
+- **Account Management**: Users can manage multiple Pinterest accounts.
+
+## Usage
+
+1. **Adding a Pinterest Account**:
+   - Navigate to the Pinterest Accounts section in the application.
+   - Enter a Pinterest username and click "Verify & Add".
+   - The app will verify the account by querying DynamoDB and load all boards/pins if found.
+
+2. **Managing Multiple Accounts**:
+   - Users can manage multiple Pinterest accounts in the application.
+   - This includes adding new accounts and verifying existing ones.
+
+## Implementation Details
+
+- **Data Retrieval**: Accounts and boards are fetched from DynamoDB and cached on disk.
+- **Verification**: The app verifies the account by querying DynamoDB.
+- **Account Management**: Users can manage multiple accounts in the application.
+
+## Error Handling
+
+- **DynamoDB Errors**: All DynamoDB operations are wrapped in try/catch blocks, with detailed error logging and fallback to mock data if needed.
+- **Cache Errors**: Disk I/O errors are handled gracefully, with fallback to direct DynamoDB queries if the cache is unavailable.
+- **Monitoring**: The app exposes cache statistics and health metrics in the UI for transparency and debugging.
+
+# Pinterest Board Manager
+
+This section provides detailed information about the Pinterest board manager feature of the application.
+
+## Features
+
+- **Board Management**: Users can view and manage their Pinterest boards.
+- **Pin Management**: Users can view and manage their pins on boards.
+- **Search and Filter**: Users can search and filter boards and pins.
+- **Responsive Layout**: Pins are displayed in a responsive, masonry-style layout.
+
+## Usage
+
+1. **Accessing the Pinterest Boards Page**:
+   - Navigate to the Pinterest Boards section in the application.
+   - This section allows users to view and manage their Pinterest boards.
+
+2. **Viewing Boards**:
+   - Users can click on a board to view pins in a masonry layout.
+   - The layout is designed to be responsive and Pinterest-like.
+
+3. **Managing Pins**:
+   - Users can manage pins on a board by clicking on the pin and using the provided options.
+   - This includes actions like editing, deleting, or adding new pins.
+
+4. **Searching and Filtering**:
+   - Users can search for specific boards or pins using the search bar.
+   - Filters can be applied to narrow down the results.
+
+## Implementation Details
+
+- **Data Retrieval**: Pins are fetched from DynamoDB and cached on disk.
+- **Layout**: Pins are displayed in a masonry layout for a Pinterest-like experience.
+- **Search and Filter**: Pins are searchable and filterable based on various criteria.
+
+## Error Handling
+
+- **DynamoDB Errors**: All DynamoDB operations are wrapped in try/catch blocks, with detailed error logging and fallback to mock data if needed.
+- **Cache Errors**: Disk I/O errors are handled gracefully, with fallback to direct DynamoDB queries if the cache is unavailable.
+- **Monitoring**: The app exposes cache statistics and health metrics in the UI for transparency and debugging.
+
+## Pinterest Account Management
+
+This section provides detailed information about the Pinterest account management feature of the application.
+
+## Features
+
+- **Account Verification**: Users can verify their Pinterest account.
+- **Account Management**: Users can manage multiple Pinterest accounts.
+
+## Usage
+
+1. **Adding a Pinterest Account**:
+   - Navigate to the Pinterest Accounts section in the application.
+   - Enter a Pinterest username and click "Verify & Add".
+   - The app will verify the account by querying DynamoDB and load all boards/pins if found.
+
+2. **Managing Multiple Accounts**:
+   - Users can manage multiple Pinterest accounts in the application.
+   - This includes adding new accounts and verifying existing ones.
+
+## Implementation Details
+
+- **Data Retrieval**: Accounts and boards are fetched from DynamoDB and cached on disk.
+- **Verification**: The app verifies the account by querying DynamoDB.
+- **Account Management**: Users can manage multiple accounts in the application.
+
+## Error Handling
+
+- **DynamoDB Errors**: All DynamoDB operations are wrapped in try/catch blocks, with detailed error logging and fallback to mock data if needed.
+- **Cache Errors**: Disk I/O errors are handled gracefully, with fallback to direct DynamoDB queries if the cache is unavailable.
+- **Monitoring**: The app exposes cache statistics and health metrics in the UI for transparency and debugging.
+
+# Pinterest Board Manager
+
+This section provides detailed information about the Pinterest board manager feature of the application.
+
+## Features
+
+- **Board Management**: Users can view and manage their Pinterest boards.
+- **Pin Management**: Users can view and manage their pins on boards.
+- **Search and Filter**: Users can search and filter boards and pins.
+- **Responsive Layout**: Pins are displayed in a responsive, masonry-style layout.
+
+## Usage
+
+1. **Accessing the Pinterest Boards Page**:
+   - Navigate to the Pinterest Boards section in the application.
+   - This section allows users to view and manage their Pinterest boards.
+
+2. **Viewing Boards**:
+   - Users can click on a board to view pins in a masonry layout.
+   - The layout is designed to be responsive and Pinterest-like.
+
+3. **Managing Pins**:
+   - Users can manage pins on a board by clicking on the pin and using the provided options.
+   - This includes actions like editing, deleting, or adding new pins.
+
+4. **Searching and Filtering**:
+   - Users can search for specific boards or pins using the search bar.
+   - Filters can be applied to narrow down the results.
+
+## Implementation Details
+
+- **Data Retrieval**: Pins are fetched from DynamoDB and cached on disk.
+- **Layout**: Pins are displayed in a masonry layout for a Pinterest-like experience.
+- **Search and Filter**: Pins are searchable and filterable based on various criteria.
+
+## Error Handling
+
+- **DynamoDB Errors**: All DynamoDB operations are wrapped in try/catch blocks, with detailed error logging and fallback to mock data if needed.
+- **Cache Errors**: Disk I/O errors are handled gracefully, with fallback to direct DynamoDB queries if the cache is unavailable.
+- **Monitoring**: The app exposes cache statistics and health metrics in the UI for transparency and debugging.
+
+## Pinterest Account Management
+
+This section provides detailed information about the Pinterest account management feature of the application.
+
+## Features
+
+- **Account Verification**: Users can verify their Pinterest account.
+- **Account Management**: Users can manage multiple Pinterest accounts.
+
+## Usage
+
+1. **Adding a Pinterest Account**:
+   - Navigate to the Pinterest Accounts section in the application.
+   - Enter a Pinterest username and click "Verify & Add".
+   - The app will verify the account by querying DynamoDB and load all boards/pins if found.
+
+2. **Managing Multiple Accounts**:
+   - Users can manage multiple Pinterest accounts in the application.
+   - This includes adding new accounts and verifying existing ones.
+
+## Implementation Details
+
+- **Data Retrieval**: Accounts and boards are fetched from DynamoDB and cached on disk.
+- **Verification**: The app verifies the account by querying DynamoDB.
+- **Account Management**: Users can manage multiple accounts in the application.
+
+## Error Handling
+
+- **DynamoDB Errors**: All DynamoDB operations are wrapped in try/catch blocks, with detailed error logging and fallback to mock data if needed.
+- **Cache Errors**: Disk I/O errors are handled gracefully, with fallback to direct DynamoDB queries if the cache is unavailable.
+- **Monitoring**: The app exposes cache statistics and health metrics in the UI for transparency and debugging.
+
+# Pinterest Board Manager
+
+This section provides detailed information about the Pinterest board manager feature of the application.
+
+## Features
+
+- **Board Management**: Users can view and manage their Pinterest boards.
+- **Pin Management**: Users can view and manage their pins on boards.
+- **Search and Filter**: Users can search and filter boards and pins.
+- **Responsive Layout**: Pins are displayed in a responsive, masonry-style layout.
+
+## Usage
+
+1. **Accessing the Pinterest Boards Page**:
+   - Navigate to the Pinterest Boards section in the application.
+   - This section allows users to view and manage their Pinterest boards.
+
+2. **Viewing Boards**:
+   - Users can click on a board to view pins in a masonry layout.
+   - The layout is designed to be responsive and Pinterest-like.
+
+3. **Managing Pins**:
+   - Users can manage pins on a board by clicking on the pin and using the provided options.
+   - This includes actions like editing, deleting, or adding new pins.
+
+4. **Searching and Filtering**:
+   - Users can search for specific boards or pins using the search bar.
+   - Filters can be applied to narrow down the results.
+
+## Implementation Details
+
+- **Data Retrieval**: Pins are fetched from DynamoDB and cached on disk.
+- **Layout**: Pins are displayed in a masonry layout for a Pinterest-like experience.
+- **Search and Filter**: Pins are searchable and filterable based on various criteria.
+
+## Error Handling
+
+- **DynamoDB Errors**: All DynamoDB operations are wrapped in try/catch blocks, with detailed error logging and fallback to mock data if needed.
+- **Cache Errors**: Disk I/O errors are handled gracefully, with fallback to direct DynamoDB queries if the cache is unavailable.
+- **Monitoring**: The app exposes cache statistics and health metrics in the UI for transparency and debugging.
+
+## Pinterest Account Management
+
+This section provides detailed information about the Pinterest account management feature of the application.
+
+## Features
+
+- **Account Verification**: Users can verify their Pinterest account.
+- **Account Management**: Users can manage multiple Pinterest accounts.
+
+## Usage
+
+1. **Adding a Pinterest Account**:
+   - Navigate to the Pinterest Accounts section in the application.
+   - Enter a Pinterest username and click "Verify & Add".
+   - The app will verify the account by querying DynamoDB and load all boards/pins if found.
+
+2. **Managing Multiple Accounts**:
+   - Users can manage multiple Pinterest accounts in the application.
+   - This includes adding new accounts and verifying existing ones.
+
+## Implementation Details
+
+- **Data Retrieval**: Accounts and boards are fetched from DynamoDB and cached on disk.
+- **Verification**: The app verifies the account by querying DynamoDB.
+- **Account Management**: Users can manage multiple accounts in the application.
+
+## Error Handling
+
+- **DynamoDB Errors**: All DynamoDB operations are wrapped in try/catch blocks, with detailed error logging and fallback to mock data if needed.
+- **Cache Errors**: Disk I/O errors are handled gracefully, with fallback to direct DynamoDB queries if the cache is unavailable.
+- **Monitoring**: The app exposes cache statistics and health metrics in the UI for transparency and debugging.
+
+# Pinterest Board Manager
+
+This section provides detailed information about the Pinterest board manager feature of the application.
+
+## Features
+
+- **Board Management**: Users can view and manage their Pinterest boards.
+- **Pin Management**: Users can view and manage their pins on boards.
+- **Search and Filter**: Users can search and filter boards and pins.
+- **Responsive Layout**: Pins are displayed in a responsive, masonry-style layout.
+
+## Usage
+
+1. **Accessing the Pinterest Boards Page**:
+   - Navigate to the Pinterest Boards section in the application.
+   - This section allows users to view and manage their Pinterest boards.
+
+2. **Viewing Boards**:
+   - Users can click on a board to view pins in a masonry layout.
+   - The layout is designed to be responsive and Pinterest-like.
+
+3. **Managing Pins**:
+   - Users can manage pins on a board by clicking on the pin and using the provided options.
+   - This includes actions like editing, deleting, or adding new pins.
+
+4. **Searching and Filtering**:
+   - Users can search for specific boards or pins using the search bar.
+   - Filters can be applied to narrow down the results.
+
+## Implementation Details
+
+- **Data Retrieval**: Pins are fetched from DynamoDB and cached on disk.
+- **Layout**: Pins are displayed in a masonry layout for a Pinterest-like experience.
+- **Search and Filter**: Pins are searchable and filterable based on various criteria.
+
+## Error Handling
+
+- **DynamoDB Errors**: All DynamoDB operations are wrapped in try/catch blocks, with detailed error logging and fallback to mock data if needed.
+- **Cache Errors**: Disk I/O errors are handled gracefully, with fallback to direct DynamoDB queries if the cache is unavailable.
+- **Monitoring**: The app exposes cache statistics and health metrics in the UI for transparency and debugging.
+
+## Pinterest Account Management
+
+This section provides detailed information about the Pinterest account management feature of the application.
+
+## Features
+
+- **Account Verification**: Users can verify their Pinterest account.
+- **Account Management**: Users can manage multiple Pinterest accounts.
+
+## Usage
+
+1. **Adding a Pinterest Account**:
+   - Navigate to the Pinterest Accounts section in the application.
+   - Enter a Pinterest username and click "Verify & Add".
+   - The app will verify the account by querying DynamoDB and load all boards/pins if found.
+
+2. **Managing Multiple Accounts**:
+   - Users can manage multiple Pinterest accounts in the application.
+   - This includes adding new accounts and verifying existing ones.
+
+## Implementation Details
+
+- **Data Retrieval**: Accounts and boards are fetched from DynamoDB and cached on disk.
+- **Verification**: The app verifies the account by querying DynamoDB.
+- **Account Management**: Users can manage multiple accounts in the application.
+
+## Error Handling
+
+- **DynamoDB Errors**: All DynamoDB operations are wrapped in try/catch blocks, with detailed error logging and fallback to mock data if needed.
+- **Cache Errors**: Disk I/O errors are handled gracefully, with fallback to direct DynamoDB queries if the cache is unavailable.
+- **Monitoring**: The app exposes cache statistics and health metrics in the UI for transparency and debugging.
+
+# Pinterest Board Manager
+
+This section provides detailed information about the Pinterest board manager feature of the application.
+
+## Features
+
+- **Board Management**: Users can view and manage their Pinterest boards.
+- **Pin Management**: Users can view and manage their pins on boards.
+- **Search and Filter**: Users can search and filter boards and pins.
+- **Responsive Layout**: Pins are displayed in a responsive, masonry-style layout.
+
+## Usage
+
+1. **Accessing the Pinterest Boards Page**:
+   - Navigate to the Pinterest Boards section in the application.
+   - This section allows users to view and manage their Pinterest boards.
+
+2. **Viewing Boards**:
+   - Users can click on a board to view pins in a masonry layout.
+   - The layout is designed to be responsive and Pinterest-like.
+
+3. **Managing Pins**:
+   - Users can manage pins on a board by clicking on the pin and using the provided options.
+   - This includes actions like editing, deleting, or adding new pins.
+
+4. **Searching and Filtering**:
+   - Users can search for specific boards or pins using the search bar.
+   - Filters can be applied to narrow down the results.
+
+## Implementation Details
+
+- **Data Retrieval**: Pins are fetched from DynamoDB and cached on disk.
+- **Layout**: Pins are displayed in a masonry layout for a Pinterest-like experience.
+- **Search and Filter**: Pins are searchable and filterable based on various criteria.
+
+## Error Handling
+
+- **DynamoDB Errors**: All DynamoDB operations are wrapped in try/catch blocks, with detailed error logging and fallback to mock data if needed.
+- **Cache Errors**: Disk I/O errors are handled gracefully, with fallback to direct DynamoDB queries if the cache is unavailable.
+- **Monitoring**: The app exposes cache statistics and health metrics in the UI for transparency and debugging.
+
+## Pinterest Account Management
+
+This section provides detailed information about the Pinterest account management feature of the application.
+
+## Features
+
+- **Account Verification**: Users can verify their Pinterest account.
+- **Account Management**: Users can manage multiple Pinterest accounts.
+
+## Usage
+
+1. **Adding a Pinterest Account**:
+   - Navigate to the Pinterest Accounts section in the application.
+   - Enter a Pinterest username and click "Verify & Add".
+   - The app will verify the account by querying DynamoDB and load all boards/pins if found.
+
+2. **Managing Multiple Accounts**:
+   - Users can manage multiple Pinterest accounts in the application.
+   - This includes adding new accounts and verifying existing ones.
+
+## Implementation Details
+
+- **Data Retrieval**: Accounts and boards are fetched from DynamoDB and cached on disk.
+- **Verification**: The app verifies the account by querying DynamoDB.
+- **Account Management**: Users can manage multiple accounts in the application.
+
+## Error Handling
+
+- **DynamoDB Errors**: All DynamoDB operations are wrapped in try/catch blocks, with detailed error logging and fallback to mock data if needed.
+- **Cache Errors**: Disk I/O errors are handled gracefully, with fallback to direct DynamoDB queries if the cache is unavailable.
+- **Monitoring**: The app exposes cache statistics and health metrics in the UI for transparency and debugging.
+
+# Pinterest Board Manager
+
+This section provides detailed information about the Pinterest board manager feature of the application.
+
+## Features
+
+- **Board Management**: Users can view and manage their Pinterest boards.
+- **Pin Management**: Users can view and manage their pins on boards.
+- **Search and Filter**: Users can search and filter boards and pins.
+- **Responsive Layout**: Pins are displayed in a responsive, masonry-style layout.
+
+## Usage
+
+1. **Accessing the Pinterest Boards Page**:
+   - Navigate to the Pinterest Boards section in the application.
+   - This section allows users to view and manage their Pinterest boards.
+
+2. **Viewing Boards**:
+   - Users can click on a board to view pins in a masonry layout.
+   - The layout is designed to be responsive and Pinterest-like.
+
+3. **Managing Pins**:
+   - Users can manage pins on a board by clicking on the pin and using the provided options.
+   - This includes actions like editing, deleting, or adding new pins.
+
+4. **Searching and Filtering**:
+   - Users can search for specific boards or pins using the search bar.
+   - Filters can be applied to narrow down the results.
+
+## Implementation Details
+
+- **Data Retrieval**: Pins are fetched from DynamoDB and cached on disk.
+- **Layout**: Pins are displayed in a masonry layout for a Pinterest-like experience.
+- **Search and Filter**: Pins are searchable and filterable based on various criteria.
+
+## Error Handling
+
+- **DynamoDB Errors**: All DynamoDB operations are wrapped in try/catch blocks, with detailed error logging and fallback to mock data if needed.
+- **Cache Errors**: Disk I/O errors are handled gracefully, with fallback to direct DynamoDB queries if the cache is unavailable.
+- **Monitoring**: The app exposes cache statistics and health metrics in the UI for transparency and debugging.
+
+## Pinterest Account Management
+
+This section provides detailed information about the Pinterest account management feature of the application.
+
+## Features
+
+- **Account Verification**: Users can verify their Pinterest account.
+- **Account Management**: Users can manage multiple Pinterest accounts.
+
+## Usage
+
+1. **Adding a Pinterest Account**:
+   - Navigate to the Pinterest Accounts section in the application.
+   - Enter a Pinterest username and click "Verify & Add".
+   - The app will verify the account by querying DynamoDB and load all boards/pins if found.
+
+2. **Managing Multiple Accounts**:
+   - Users can manage multiple Pinterest accounts in the application.
+   - This includes adding new accounts and verifying existing ones.
+
+## Implementation Details
+
+- **Data Retrieval**: Accounts and boards are fetched from DynamoDB and cached on disk.
+- **Verification**: The app verifies the account by querying DynamoDB.
+- **Account Management**: Users can manage multiple accounts in the application.
+
+## Error Handling
+
+- **DynamoDB Errors**: All DynamoDB operations are wrapped in try/catch blocks, with detailed error logging and fallback to mock data if needed.
+- **Cache Errors**: Disk I/O errors are handled gracefully, with fallback to direct DynamoDB queries if the cache is unavailable.
+- **Monitoring**: The app exposes cache statistics and health metrics in the UI for transparency and debugging.
+
+# Pinterest Board Manager
+
+This section provides detailed information about the Pinterest board manager feature of the application.
+
+## Features
+
+- **Board Management**: Users can view and manage their Pinterest boards.
+- **Pin Management**: Users can view and manage their pins on boards.
+- **Search and Filter**: Users can search and filter boards and pins.
+- **Responsive Layout**: Pins are displayed in a responsive, masonry-style layout.
+
+## Usage
+
+1. **Accessing the Pinterest Boards Page**:
+   - Navigate to the Pinterest Boards section in the application.
+   - This section allows users to view and manage their Pinterest boards.
+
+2. **Viewing Boards**:
+   - Users can click on a board to view pins in a masonry layout.
+   - The layout is designed to be responsive and Pinterest-like.
+
+3. **Managing Pins**:
+   - Users can manage pins on a board by clicking on the pin and using the provided options.
+   - This includes actions like editing, deleting, or adding new pins.
+
+4. **Searching and Filtering**:
+   - Users can search for specific boards or pins using the search bar.
+   - Filters can be applied to narrow down the results.
+
+## Implementation Details
+
+- **Data Retrieval**: Pins are fetched from DynamoDB and cached on disk.
+- **Layout**: Pins are displayed in a masonry layout for a Pinterest-like experience.
+- **Search and Filter**: Pins are searchable and filterable based on various criteria.
+
+## Error Handling
+
+- **DynamoDB Errors**: All DynamoDB operations are wrapped in try/catch blocks, with detailed error logging and fallback to mock data if needed.
+- **Cache Errors**: Disk I/O errors are handled gracefully, with fallback to direct DynamoDB queries if the cache is unavailable.
+- **Monitoring**: The app exposes cache statistics and health metrics in the UI for transparency and debugging.
+
+## Pinterest Account Management
+
+This section provides detailed information about the Pinterest account management feature of the application.
+
+## Features
+
+- **Account Verification**: Users can verify their Pinterest account.
+- **Account Management**: Users can manage multiple Pinterest accounts.
+
+## Usage
+
+1. **Adding a Pinterest Account**:
+   - Navigate to the Pinterest Accounts section in the application.
+   - Enter a Pinterest username and click "Verify & Add".
+   - The app will verify the account by querying DynamoDB and load all boards/pins if found.
+
+2. **Managing Multiple Accounts**:
+   - Users can manage multiple Pinterest accounts in the application.
+   - This includes adding new accounts and verifying existing ones.
+
+## Implementation Details
+
+- **Data Retrieval**: Accounts and boards are fetched from DynamoDB and cached on disk.
+- **Verification**: The app verifies the account by querying DynamoDB.
+- **Account Management**: Users can manage multiple accounts in the application.
+
+## Error Handling
+
+- **DynamoDB Errors**: All DynamoDB operations are wrapped in try/catch blocks, with detailed error logging and fallback to mock data if needed.
+- **Cache Errors**: Disk I/O errors are handled gracefully, with fallback to direct DynamoDB queries if the cache is unavailable.
+- **Monitoring**: The app exposes cache statistics and health metrics in the UI for transparency and debugging.
+
+# Pinterest Board Manager
+
+This section provides detailed information about the Pinterest board manager feature of the application.
+
+## Features
+
+- **Board Management**: Users can view and manage their Pinterest boards.
+- **Pin Management**: Users can view and manage their pins on boards.
+- **Search and Filter**: Users can search and filter boards and pins.
+- **Responsive Layout**: Pins are displayed in a responsive, masonry-style layout.
+
+## Usage
+
+1. **Accessing the Pinterest Boards Page**:
+   - Navigate to the Pinterest Boards section in the application.
+   - This section allows users to view and manage their Pinterest boards.
+
+2. **Viewing Boards**:
+   - Users can click on a board to view pins in a masonry layout.
+   - The layout is designed to be responsive and Pinterest-like.
+
+3. **Managing Pins**:
+   - Users can manage pins on a board by clicking on the pin and using the provided options.
+   - This includes actions like editing, deleting, or adding new pins.
+
+4. **Searching and Filtering**:
+   - Users can search for specific boards or pins using the search bar.
+   - Filters can be applied to narrow down the results.
+
+## Implementation Details
+
+- **Data Retrieval**: Pins are fetched from DynamoDB and cached on disk.
+- **Layout**: Pins are displayed in a masonry layout for a Pinterest-like experience.
+- **Search and Filter**: Pins are searchable and filterable based on various criteria.
+
+## Error Handling
+
+- **DynamoDB Errors**: All DynamoDB operations are wrapped in try/catch blocks, with detailed error logging and fallback to mock data if needed.
+- **Cache Errors**: Disk I/O errors are handled gracefully, with fallback to direct DynamoDB queries if the cache is unavailable.
+- **Monitoring**: The app exposes cache statistics and health metrics in the UI for transparency and debugging.
+
+## Pinterest Account Management
+
+This section provides detailed information about the Pinterest account management feature of the application.
+
+## Features
+
+- **Account Verification**: Users can verify their Pinterest account.
+- **Account Management**: Users can manage multiple Pinterest accounts.
+
+## Usage
+
+1. **Adding a Pinterest Account**:
+   - Navigate to the Pinterest Accounts section in the application.
+   - Enter a Pinterest username and click "Verify & Add".
+   - The app will verify the account by querying DynamoDB and load all boards/pins if found.
+
+2. **Managing Multiple Accounts**:
+   - Users can manage multiple Pinterest accounts in the application.
+   - This includes adding new accounts and verifying existing ones.
+
+## Implementation Details
+
+- **Data Retrieval**: Accounts and boards are fetched from DynamoDB and cached on disk.
+- **Verification**: The app verifies the account by querying DynamoDB.
+- **Account Management**: Users can manage multiple accounts in the application.
+
+## Error Handling
+
+- **DynamoDB Errors**: All DynamoDB operations are wrapped in try/catch blocks, with detailed error logging and fallback to mock data if needed.
+- **Cache Errors**: Disk I/O errors are handled gracefully, with fallback to direct DynamoDB queries if the cache is unavailable.
+- **Monitoring**: The app exposes cache statistics and health metrics in the UI for transparency and debugging.
+
+# Pinterest Board Manager
+
+This section provides detailed information about the Pinterest board manager feature of the application.
+
+## Features
+
+- **Board Management**: Users can view and manage their Pinterest boards.
+- **Pin Management**: Users can view and manage their pins on boards.
+- **Search and Filter**: Users can search and filter boards and pins.
+- **Responsive Layout**: Pins are displayed in a responsive, masonry-style layout.
+
+## Usage
+
+1. **Accessing the Pinterest Boards Page**:
+   - Navigate to the Pinterest Boards section in the application.
+   - This section allows users to view and manage their Pinterest boards.
+
+2. **Viewing Boards**:
+   - Users can click on a board to view pins in a masonry layout.
+   - The layout is designed to be responsive and Pinterest-like.
+
+3. **Managing Pins**:
+   - Users can manage pins on a board by clicking on the pin and using the provided options.
+   - This includes actions like editing, deleting, or adding new pins.
+
+4. **Searching and Filtering**:
+   - Users can search for specific boards or pins using the search bar.
+   - Filters can be applied to narrow down the results.
+
+## Implementation Details
+
+- **Data Retrieval**: Pins are fetched from DynamoDB and cached on disk.
+- **Layout**: Pins are displayed in a masonry layout for a Pinterest-like experience.
+- **Search and Filter**: Pins are searchable and filterable based on various criteria.
+
+## Error Handling
+
+- **DynamoDB Errors**: All DynamoDB operations are wrapped in try/catch blocks, with detailed error logging and fallback to mock data if needed.
+- **Cache Errors**: Disk I/O errors are handled gracefully, with fallback to direct DynamoDB queries if the cache is unavailable.
+- **Monitoring**: The app exposes cache statistics and health metrics in the UI for transparency and debugging.
+
+## Pinterest Account Management
+
+This section provides detailed information about the Pinterest account management feature of the application.
+
+## Features
+
+- **Account Verification**: Users can verify their Pinterest account.
+- **Account Management**: Users can manage multiple Pinterest accounts.
+
+## Usage
+
+1. **Adding a Pinterest Account**:
+   - Navigate to the Pinterest Accounts section in the application.
+   - Enter a Pinterest username and click "Verify & Add".
+   - The app will verify the account by querying DynamoDB and load all boards/pins if found.
+
+2. **Managing Multiple Accounts**:
+   - Users can manage multiple Pinterest accounts in the application.
+   - This includes adding new accounts and verifying existing ones.
+
+## Implementation Details
+
+- **Data Retrieval**: Accounts and boards are fetched from DynamoDB and cached on disk.
+- **Verification**: The app verifies the account by querying DynamoDB.
+- **Account Management**: Users can manage multiple accounts in the application.
+
+## Error Handling
+
+- **DynamoDB Errors**: All DynamoDB operations are wrapped in try/catch blocks, with detailed error logging and fallback to mock data if needed.
+- **Cache Errors**: Disk I/O errors are handled gracefully, with fallback to direct DynamoDB queries if the cache is unavailable.
+- **Monitoring**: The app exposes cache statistics and health metrics in the UI for transparency and debugging.
+
+# Pinterest Board Manager
+
+This section provides detailed information about the Pinterest board manager feature of the application.
+
+## Features
+
+- **Board Management**: Users can view and manage their Pinterest boards.
+- **Pin Management**: Users can view and manage their pins on boards.
+- **Search and Filter**: Users can search and filter boards and pins.
+- **Responsive Layout**: Pins are displayed in a responsive, masonry-style layout.
+
+## Usage
+
+1. **Accessing the Pinterest Boards Page**:
+   - Navigate to the Pinterest Boards section in the application.
+   - This section allows users to view and manage their Pinterest boards.
+
+2. **Viewing Boards**:
+   - Users can click on a board to view pins in a masonry layout.
+   - The layout is designed to be responsive and Pinterest-like.
+
+3. **Managing Pins**:
+   - Users can manage pins on a board by clicking on the pin and using the provided options.
+   - This includes actions like editing, deleting, or adding new pins.
+
+4. **Searching and Filtering**:
+   - Users can search for specific boards or pins using the search bar.
+   - Filters can be applied to narrow down the results.
+
+## Implementation Details
+
+- **Data Retrieval**: Pins are fetched from DynamoDB and cached on disk.
+- **Layout**: Pins are displayed in a masonry layout for a Pinterest-like experience.
+- **Search and Filter**: Pins are searchable and filterable based on various criteria.
+
+## Error Handling
+
+- **DynamoDB Errors**: All DynamoDB operations are wrapped in try/catch blocks, with detailed error logging and fallback to mock data if needed.
+- **Cache Errors**: Disk I/O errors are handled gracefully, with fallback to direct DynamoDB queries if the cache is unavailable.
+- **Monitoring**: The app exposes cache statistics and health metrics in the UI for transparency and debugging.
+
+## Pinterest Account Management
+
+This section provides detailed information about the Pinterest account management feature of the application.
+
+## Features
+
+- **Account Verification**: Users can verify their Pinterest account.
+- **Account Management**: Users can manage multiple Pinterest accounts.
+
+## Usage
+
+1. **Adding a Pinterest Account**:
+   - Navigate to the Pinterest Accounts section in the application.
+   - Enter a Pinterest username and click "Verify & Add".
+   - The app will verify the account by querying DynamoDB and load all boards/pins if found.
+
+2. **Managing Multiple Accounts**:
+   - Users can manage multiple Pinterest accounts in the application.
+   - This includes adding new accounts and verifying existing ones.
+
+## Implementation Details
+
+- **Data Retrieval**: Accounts and boards are fetched from DynamoDB and cached on disk.
+- **Verification**: The app verifies the account by querying DynamoDB.
+- **Account Management**: Users can manage multiple accounts in the application.
+
+## Error Handling
+
+- **DynamoDB Errors**: All DynamoDB operations are wrapped in try/catch blocks, with detailed error logging and fallback to mock data if needed.
+- **Cache Errors**: Disk I/O errors are handled gracefully, with fallback to direct DynamoDB queries if the cache is unavailable.
+- **Monitoring**: The app exposes cache statistics and health metrics in the UI for transparency and debugging.
+
+# Pinterest Board Manager
+
+This section provides detailed information about the Pinterest board manager feature of the application.
+
+## Features
+
+- **Board Management**: Users can view and manage their Pinterest boards.
+- **Pin Management**: Users can view and manage their pins on boards.
+- **Search and Filter**: Users can search and filter boards and pins.
+- **Responsive Layout**: Pins are displayed in a responsive, masonry-style layout.
+
+## Usage
+
+1. **Accessing the Pinterest Boards Page**:
+   - Navigate to the Pinterest Boards section in the application.
+   - This section allows users to view and manage their Pinterest boards.
+
+2. **Viewing Boards**:
+   - Users can click on a board to view pins in a masonry layout.
+   - The layout is designed to be responsive and Pinterest-like.
+
+3. **Managing Pins**:
+   - Users can manage pins on a board by clicking on the pin and using the provided options.
+   - This includes actions like editing, deleting, or adding new pins.
+
+4. **Searching and Filtering**:
+   - Users can search for specific boards or pins using the search bar.
+   - Filters can be applied to narrow down the results.
+
+## Implementation Details
+
+- **Data Retrieval**: Pins are fetched from DynamoDB and cached on disk.
+- **Layout**: Pins are displayed in a masonry layout for a Pinterest-like experience.
+- **Search and Filter**: Pins are searchable and filterable based on various criteria.
+
+## Error Handling
+
+- **DynamoDB Errors**: All DynamoDB operations are wrapped in try/catch blocks, with detailed error logging and fallback to mock data if needed.
+- **Cache Errors**: Disk I/O errors are handled gracefully, with fallback to direct DynamoDB queries if the cache is unavailable.
+- **Monitoring**: The app exposes cache statistics and health metrics in the UI for transparency and debugging.
+
+## Pinterest Account Management
+
+This section provides detailed information about the Pinterest account management feature of the application.
+
+## Features
+
+- **Account Verification**: Users can verify their Pinterest account.
+- **Account Management**: Users can manage multiple Pinterest accounts.
+
+## Usage
+
+1. **Adding a Pinterest Account**:
+   - Navigate to the Pinterest Accounts section in the application.
+   - Enter a Pinterest username and click "Verify & Add".
+   - The app will verify the account by querying DynamoDB and load all boards/pins if found.
+
+2. **Managing Multiple Accounts**:
+   - Users can manage multiple Pinterest accounts in the application.
+   - This includes adding new accounts and verifying existing ones.
+
+## Implementation Details
+
+- **Data Retrieval**: Accounts and boards are fetched from DynamoDB and cached on disk.
+- **Verification**: The app verifies the account by querying DynamoDB.
+- **Account Management**: Users can manage multiple accounts in the application.
+
+## Error Handling
+
+- **DynamoDB Errors**: All DynamoDB operations are wrapped in try/catch blocks, with detailed error logging and fallback to mock data if needed.
+- **Cache Errors**: Disk I/O errors are handled gracefully, with fallback to direct DynamoDB queries if the cache is unavailable.
+- **Monitoring**: The app exposes cache statistics and health metrics in the UI for transparency and debugging.
+
+# Pinterest Board Manager
+
+This section provides detailed information about the Pinterest board manager feature of the application.
+
+## Features
+
+- **Board Management**: Users can view and manage their Pinterest boards.
+- **Pin Management**: Users can view and manage their pins on boards.
+- **Search and Filter**: Users can search and filter boards and pins.
+- **Responsive Layout**: Pins are displayed in a responsive, masonry-style layout.
+
+## Usage
+
+1. **Accessing the Pinterest Boards Page**:
+   - Navigate to the Pinterest Boards section in the application.
+   - This section allows users to view and manage their Pinterest boards.
+
+2. **Viewing Boards**:
+   - Users can click on a board to view pins in a masonry layout.
+   - The layout is designed to be responsive and Pinterest-like.
+
+3. **Managing Pins**:
+   - Users can manage pins on a board by clicking on the pin and using the provided options.
+   - This includes actions like editing, deleting, or adding new pins.
+
+4. **Searching and Filtering**:
+   - Users can search for specific boards or pins using the search bar.
+   - Filters can be applied to narrow down the results.
+
+## Implementation Details
+
+- **Data Retrieval**: Pins are fetched from DynamoDB and cached on disk.
+- **Layout**: Pins are displayed in a masonry layout for a Pinterest-like experience.
+- **Search and Filter**: Pins are searchable and filterable based on various criteria.
+
+## Error Handling
+
+- **DynamoDB Errors**: All DynamoDB operations are wrapped in try/catch blocks, with detailed error logging and fallback to mock data if needed.
+- **Cache Errors**: Disk I/O errors are handled gracefully, with fallback to direct DynamoDB queries if the cache is unavailable.
+- **Monitoring**: The app exposes cache statistics and health metrics in the UI for transparency and debugging.
+
+## Pinterest Account Management
+
+This section provides detailed information about the Pinterest account management feature of the application.
+
+## Features
+
+- **Account Verification**: Users can verify their Pinterest account.
+- **Account Management**: Users can manage multiple Pinterest accounts.
+
+## Usage
+
+1. **Adding a Pinterest Account**:
+   - Navigate to the Pinterest Accounts section in the application.
+   - Enter a Pinterest username and click "Verify & Add".
+   - The app will verify the account by querying DynamoDB and load all boards/pins if found.
+
+2. **Managing Multiple Accounts**:
+   - Users can manage multiple Pinterest accounts in the application.
+   - This includes adding new accounts and verifying existing ones.
+
+## Implementation Details
+
+- **Data Retrieval**: Accounts and boards are fetched from DynamoDB and cached on disk.
+- **Verification**: The app verifies the account by querying DynamoDB.
+- **Account Management**: Users can manage multiple accounts in the application.
+
+## Error Handling
+
+- **DynamoDB Errors**: All DynamoDB operations are wrapped in try/catch blocks, with detailed error logging and fallback to mock data if needed.
+- **Cache Errors**: Disk I/O errors are handled gracefully, with fallback to direct DynamoDB queries if the cache is unavailable.
+- **Monitoring**: The app exposes cache statistics and health metrics in the UI for transparency and debugging.
+
+# Pinterest Board Manager
+
+This section provides detailed information about the Pinterest board manager feature of the application.
+
+## Features
+
+- **Board Management**: Users can view and manage their Pinterest boards.
+- **Pin Management**: Users can view and manage their pins on boards.
+- **Search and Filter**: Users can search and filter boards and pins.
+- **Responsive Layout**: Pins are displayed in a responsive, masonry-style layout.
+
+## Usage
+
+1. **Accessing the Pinterest Boards Page**:
+   - Navigate to the Pinterest Boards section in the application.
+   - This section allows users to view and manage their Pinterest boards.
+
+2. **Viewing Boards**:
+   - Users can click on a board to view pins in a masonry layout.
+   - The layout is designed to be responsive and Pinterest-like.
+
+3. **Managing Pins**:
+   - Users can manage pins on a board by clicking on the pin and using the provided options.
+   - This includes actions like editing, deleting, or adding new pins.
+
+4. **Searching and Filtering**:
+   - Users can search for specific boards or pins using the search bar.
+   - Filters can be applied to narrow down the results.
+
+## Implementation Details
+
+- **Data Retrieval**: Pins are fetched from DynamoDB and cached on disk.
+- **Layout**: Pins are displayed in a masonry layout for a Pinterest-like experience.
+- **Search and Filter**: Pins are searchable and filterable based on various criteria.
+
+## Error Handling
+
+- **DynamoDB Errors**: All DynamoDB operations are wrapped in try/catch blocks, with detailed error logging and fallback to mock data if needed.
+- **Cache Errors**: Disk I/O errors are handled gracefully, with fallback to direct DynamoDB queries if the cache is unavailable.
+- **Monitoring**: The app exposes cache statistics and health metrics in the UI for transparency and debugging.
+
+## Pinterest Account Management
+
+This section provides detailed information about the Pinterest account management feature of the application.
+
+## Features
+
+- **Account Verification**: Users can verify their Pinterest account.
+- **Account Management**: Users can manage multiple Pinterest accounts.
+
+## Usage
+
+1. **Adding a Pinterest Account**:
+   - Navigate to the Pinterest Accounts section in the application.
+   - Enter a Pinterest username and click "Verify & Add".
+   - The app will verify the account by querying DynamoDB and load all boards/pins if found.
+
+2. **Managing Multiple Accounts**:
+   - Users can manage multiple Pinterest accounts in the application.
+   - This includes adding new accounts and verifying existing ones.
+
+## Implementation Details
+
+- **Data Retrieval**: Accounts and boards are fetched from DynamoDB and cached on disk.
+- **Verification**: The app verifies the account by querying DynamoDB.
+- **Account Management**: Users can manage multiple accounts in the application.
+
+## Error Handling
+
+- **DynamoDB Errors**: All DynamoDB operations are wrapped in try/catch blocks, with detailed error logging and fallback to mock data if needed.
+- **Cache Errors**: Disk I/O errors are handled gracefully, with fallback to direct DynamoDB queries if the cache is unavailable.
+- **Monitoring**: The app exposes cache statistics and health metrics in the UI for transparency and debugging.
+
+# Pinterest Board Manager
+
+This section provides detailed information about the Pinterest board manager feature of the application.
+
+## Features
+
+- **Board Management**: Users can view and manage their Pinterest boards.
+- **Pin Management**: Users can view and manage their pins on boards.
+- **Search and Filter**: Users can search and filter boards and pins.
+- **Responsive Layout**: Pins are displayed in a responsive, masonry-style layout.
+
+## Usage
+
+1. **Accessing the Pinterest Boards Page**:
+   - Navigate to the Pinterest Boards section in the application.
+   - This section allows users to view and manage their Pinterest boards.
+
+2. **Viewing Boards**:
+   - Users can click on a board to view pins in a masonry layout.
+   - The layout is designed to be responsive and Pinterest-like.
+
+3. **Managing Pins**:
+   - Users can manage pins on a board by clicking on the pin and using the provided options.
+   - This includes actions like editing, deleting, or adding new pins.
+
+4. **Searching and Filtering**:
+   - Users can search for specific boards or pins using the search bar.
+   - Filters can be applied to narrow down the results.
+
+## Implementation Details
+
+- **Data Retrieval**: Pins are fetched from DynamoDB and cached on disk.
+- **Layout**: Pins are displayed in a masonry layout for a Pinterest-like experience.
+- **Search and Filter**: Pins are searchable and filterable based on various criteria.
+
+## Error Handling
+
+- **DynamoDB Errors**: All DynamoDB operations are wrapped in try/catch blocks, with detailed error logging and fallback to mock data if needed.
+- **Cache Errors**: Disk I/O errors are handled gracefully, with fallback to direct DynamoDB queries if the cache is unavailable.
+- **Monitoring**: The app exposes cache statistics and health metrics in the UI for transparency and debugging.
+
+## Pinterest Account Management
+
+This section provides detailed information about the Pinterest account management feature of the application.
+
+## Features
+
+- **Account Verification**: Users can verify their Pinterest account.
+- **Account Management**: Users can manage multiple Pinterest accounts.
+
+## Usage
+
+1. **Adding a Pinterest Account**:
+   - Navigate to the Pinterest Accounts section in the application.
+   - Enter a Pinterest username and click "Verify & Add".
+   - The app will verify the account by querying DynamoDB and load all boards/pins if found.
+
+2. **Managing Multiple Accounts**:
+   - Users can manage multiple Pinterest accounts in the application.
+   - This includes adding new accounts and verifying existing ones.
+
+## Implementation Details
+
+- **Data Retrieval**: Accounts and boards are fetched from DynamoDB and cached on disk.
+- **Verification**: The app verifies the account by querying DynamoDB.
+- **Account Management**: Users can manage multiple accounts in the application.
+
+## Error Handling
+
+- **DynamoDB Errors**: All DynamoDB operations are wrapped in try/catch blocks, with detailed error logging and fallback to mock data if needed.
+- **Cache Errors**: Disk I/O errors are handled gracefully, with fallback to direct DynamoDB queries if the cache is unavailable.
+- **Monitoring**: The app exposes cache statistics and health metrics in the UI for transparency and debugging.
+
+# Pinterest Board Manager
+
+This section provides detailed information about the Pinterest board manager feature of the application.
+
+## Features
+
+- **Board Management**: Users can view and manage their Pinterest boards.
+- **Pin Management**: Users can view and manage their pins on boards.
+- **Search and Filter**: Users can search and filter boards and pins.
+- **Responsive Layout**: Pins are displayed in a responsive, masonry-style layout.
+
+## Usage
+
+1. **Accessing the Pinterest Boards Page**:
+   - Navigate to the Pinterest Boards section in the application.
+   - This section allows users to view and manage their Pinterest boards.
+
+2. **Viewing Boards**:
+   - Users can click on a board to view pins in a masonry layout.
+   - The layout is designed to be responsive and Pinterest-like.
+
+3. **Managing Pins**:
+   - Users can manage pins on a board by clicking on the pin and using the provided options.
+   - This includes actions like editing, deleting, or adding new pins.
+
+4. **Searching and Filtering**:
+   - Users can search for specific boards or pins using the search bar.
+   - Filters can be applied to narrow down the results.
+
+## Implementation Details
+
+- **Data Retrieval**: Pins are fetched from DynamoDB and cached on disk.
+- **Layout**: Pins are displayed in a masonry layout for a Pinterest-like experience.
+- **Search and Filter**: Pins are searchable and filterable based on various criteria.
+
+## Error Handling
+
+- **DynamoDB Errors**: All DynamoDB operations are wrapped in try/catch blocks, with detailed error logging and fallback to mock data if needed.
+- **Cache Errors**: Disk I/O errors are handled gracefully, with fallback to direct DynamoDB queries if the cache is unavailable.
+- **Monitoring**: The app exposes cache statistics and health metrics in the UI for transparency and debugging.
+
+## Pinterest Account Management
+
+This section provides detailed information about the Pinterest account management feature of the application.
+
+## Features
+
+- **Account Verification**: Users can verify their Pinterest account.
+- **Account Management**: Users can manage multiple Pinterest accounts.
+
+## Usage
+
+1. **Adding a Pinterest Account**:
+   - Navigate to the Pinterest Accounts section in the application.
+   - Enter a Pinterest username and click "Verify & Add".
+   - The app will verify the account by querying DynamoDB and load all boards/pins if found.
+
+2. **Managing Multiple Accounts**:
+   - Users can manage multiple Pinterest accounts in the application.
+   - This includes adding new accounts and verifying existing ones.
+
+## Implementation Details
+
+- **Data Retrieval**: Accounts and boards are fetched from DynamoDB and cached on disk.
+- **Verification**: The app verifies the account by querying DynamoDB.
+- **Account Management**: Users can manage multiple accounts in the application.
+
+## Error Handling
+
+- **DynamoDB Errors**: All DynamoDB operations are wrapped in try/catch blocks, with detailed error logging and fallback to mock data if needed.
+- **Cache Errors**: Disk I/O errors are handled gracefully, with fallback to direct DynamoDB queries if the cache is unavailable.
+- **Monitoring**: The app exposes cache statistics and health metrics in the UI for transparency and debugging.
+
+# Pinterest Board Manager
+
+This section provides detailed information about the Pinterest board manager feature of the application.
+
+## Features
+
+- **Board Management**: Users can view and manage their Pinterest boards.
+- **Pin Management**: Users can view and manage their pins on boards.
+- **Search and Filter**: Users can search and filter boards and pins.
+- **Responsive Layout**: Pins are displayed in a responsive, masonry-style layout.
+
+## Usage
+
+1. **Accessing the Pinterest Boards Page**:
+   - Navigate to the Pinterest Boards section in the application.
+   - This section allows users to view and manage their Pinterest boards.
+
+2. **Viewing Boards**:
+   - Users can click on a board to view pins in a masonry layout.
+   - The layout is designed to be responsive and Pinterest-like.
+
+3. **Managing Pins**:
+   - Users can manage pins on a board by clicking on the pin and using the provided options.
+   - This includes actions like editing, deleting, or adding new pins.
+
+4. **Searching and Filtering**:
+   - Users can search for specific boards or pins using the search bar.
+   - Filters can be applied to narrow down the results.
+
+## Implementation Details
+
+- **Data Retrieval**: Pins are fetched from DynamoDB and cached on disk.
+- **Layout**: Pins are displayed in a masonry layout for a Pinterest-like experience.
+- **Search and Filter**: Pins are searchable and filterable based on various criteria.
+
+## Error Handling
+
+- **DynamoDB Errors**: All DynamoDB operations are wrapped in try/catch blocks, with detailed error logging and fallback to mock data if needed.
+- **Cache Errors**: Disk I/O errors are handled gracefully, with fallback to direct DynamoDB queries if the cache is unavailable.
+- **Monitoring**: The app exposes cache statistics and health metrics in the UI for transparency and debugging.
+
+## Pinterest Account Management
+
+This section provides detailed information about the Pinterest account management feature of the application.
+
+## Features
+
+- **Account Verification**: Users can verify their Pinterest account.
+- **Account Management**: Users can manage multiple Pinterest accounts.
+
+## Usage
+
+1. **Adding a Pinterest Account**:
+   - Navigate to the Pinterest Accounts section in the application.
+   - Enter a Pinterest username and click "Verify & Add".
+   - The app will verify the account by querying DynamoDB and load all boards/pins if found.
+
+2. **Managing Multiple Accounts**:
+   - Users can manage multiple Pinterest accounts in the application.
+   - This includes adding new accounts and verifying existing ones.
+
+## Implementation Details
+
+- **Data Retrieval**: Accounts and boards are fetched from DynamoDB and cached on disk.
+- **Verification**: The app verifies the account by querying DynamoDB.
+- **Account Management**: Users can manage multiple accounts in the application.
+
+## Error Handling
+
+- **DynamoDB Errors**: All DynamoDB operations are wrapped in try/catch blocks, with detailed error logging and fallback to mock data if needed.
+- **Cache Errors**: Disk I/O errors are handled gracefully, with fallback to direct DynamoDB queries if the cache is unavailable.
+- **Monitoring**: The app exposes cache statistics and health metrics in the UI for transparency and debugging.
+
+# Pinterest Board Manager
+
+This section provides detailed information about the Pinterest board manager feature of the application.
+
+## Features
+
+- **Board Management**: Users can view and manage their Pinterest boards.
+- **Pin Management**: Users can view and manage their pins on boards.
+- **Search and Filter**: Users can search and filter boards and pins.
+- **Responsive Layout**: Pins are displayed in a responsive, masonry-style layout.
+
+## Usage
+
+1. **Accessing the Pinterest Boards Page**:
+   - Navigate to the Pinterest Boards section in the application.
+   - This section allows users to view and manage their Pinterest boards.
+
+2. **Viewing Boards**:
+   - Users can click on a board to view pins in a masonry layout.
+   - The layout is designed to be responsive and Pinterest-like.
+
+3. **Managing Pins**:
+   - Users can manage pins on a board by clicking on the pin and using the provided options.
+   - This includes actions like editing, deleting, or adding new pins.
+
+4. **Searching and Filtering**:
+   - Users can search for specific boards or pins using the search bar.
+   - Filters can be applied to narrow down the results.
+
+## Implementation Details
+
+- **Data Retrieval**: Pins are fetched from DynamoDB and cached on disk.
+- **Layout**: Pins are displayed in a masonry layout for a Pinterest-like experience.
+- **Search and Filter**: Pins are searchable and filterable based on various criteria.
+
+## Error Handling
+
+- **DynamoDB Errors**: All DynamoDB operations are wrapped in try/catch blocks, with detailed error logging and fallback to mock data if needed.
+- **Cache Errors**: Disk I/O errors are handled gracefully, with fallback to direct DynamoDB queries if the cache is unavailable.
+- **Monitoring**: The app exposes cache statistics and health metrics in the UI for transparency and debugging.
+
+## Pinterest Account Management
+
+This section provides detailed information about the Pinterest account management feature of the application.
+
+## Features
+
+- **Account Verification**: Users can verify their Pinterest account.
+- **Account Management**: Users can manage multiple Pinterest accounts.
+
+## Usage
+
+1. **Adding a Pinterest Account**:
+   - Navigate to the Pinterest Accounts section in the application.
+   - Enter a Pinterest username and click "Verify & Add".
+   - The app will verify the account by querying DynamoDB and load all boards/pins if found.
+
+2. **Managing Multiple Accounts**:
+   - Users can manage multiple Pinterest accounts in the application.
+   - This includes adding new accounts and verifying existing ones.
+
+## Implementation Details
+
+- **Data Retrieval**: Accounts and boards are fetched from DynamoDB and cached on disk.
+- **Verification**: The app verifies the account by querying DynamoDB.
+- **Account Management**: Users can manage multiple accounts in the application.
+
+## Error Handling
+
+- **DynamoDB Errors**: All DynamoDB operations are wrapped in try/catch blocks, with detailed error logging and fallback to mock data if needed.
+- **Cache Errors**: Disk I/O errors are handled gracefully, with fallback to direct DynamoDB queries if the cache is unavailable.
+- **Monitoring**: The app exposes cache statistics and health metrics in the UI for transparency and debugging.
+
+# Pinterest Board Manager
+
+This section provides detailed information about the Pinterest board manager feature of the application.
+
+## Features
+
+- **Board Management**: Users can view and manage their Pinterest boards.
+- **Pin Management**: Users can view and manage their pins on boards.
+- **Search and Filter**: Users can search and filter boards and pins.
+- **Responsive Layout**: Pins are displayed in a responsive, masonry-style layout.
+
+## Usage
+
+1. **Accessing the Pinterest Boards Page**:
+   - Navigate to the Pinterest Boards section in the application.
+   - This section allows users to view and manage their Pinterest boards.
+
+2. **Viewing Boards**:
+   - Users can click on a board to view pins in a masonry layout.
+   - The layout is designed to be responsive and Pinterest-like.
+
+3. **Managing Pins**:
+   - Users can manage pins on a board by clicking on the pin and using the provided options.
+   - This includes actions like editing, deleting, or adding new pins.
+
+4. **Searching and Filtering**:
+   - Users can search for specific boards or pins using the search bar.
+   - Filters can be applied to narrow down the results.
+
+## Implementation Details
+
+- **Data Retrieval**: Pins are fetched from DynamoDB and cached on disk.
+- **Layout**: Pins are displayed in a masonry layout for a Pinterest-like experience.
+- **Search and Filter**: Pins are searchable and filterable based on various criteria.
+
+## Error Handling
+
+- **DynamoDB Errors**: All DynamoDB operations are wrapped in try/catch blocks, with detailed error logging and fallback to mock data if needed.
+- **Cache Errors**: Disk I/O errors are handled gracefully, with fallback to direct DynamoDB queries if the cache is unavailable.
+- **Monitoring**: The app exposes cache statistics and health metrics in the UI for transparency and debugging.
+
+## Pinterest Account Management
+
+This section provides detailed information about the Pinterest account management feature of the application.
+
+## Features
+
+- **Account Verification**: Users can verify their Pinterest account.
+- **Account Management**: Users can manage multiple Pinterest accounts.
+
+## Usage
+
+1. **Adding a Pinterest Account**:
+   - Navigate to the Pinterest Accounts section in the application.
+   - Enter a Pinterest username and click "Verify & Add".
+   - The app will verify the account by querying DynamoDB and load all boards/pins if found.
+
+2. **Managing Multiple Accounts**:
+   - Users can manage multiple Pinterest accounts in the application.
+   - This includes adding new accounts and verifying existing ones.
+
+## Implementation Details
+
+- **Data Retrieval**: Accounts and boards are fetched from DynamoDB and cached on disk.
+- **Verification**: The app verifies the account by querying DynamoDB.
+- **Account Management**: Users can manage multiple accounts in the application.
+
+## Error Handling
+
+- **DynamoDB Errors**: All DynamoDB operations are wrapped in try/catch blocks, with detailed error logging and fallback to mock data if needed.
+- **Cache Errors**: Disk I/O errors are handled gracefully, with fallback to direct DynamoDB queries if the cache is unavailable.
+- **Monitoring**: The app exposes cache statistics and health metrics in the UI for transparency and debugging.
+
+# Pinterest Board Manager
+
+This section provides detailed information about the Pinterest board manager feature of the application.
+
+## Features
+
+- **Board Management**: Users can view and manage their Pinterest boards.
+- **Pin Management**: Users can view and manage their pins on boards.
+- **Search and Filter**: Users can search and filter boards and pins.
+- **Responsive Layout**: Pins are displayed in a responsive, masonry-style layout.
+
+## Usage
+
+1. **Accessing the Pinterest Boards Page**:
+   - Navigate to the Pinterest Boards section in the application.
+   - This section allows users to view and manage their Pinterest boards.
+
+2. **Viewing Boards**:
+   - Users can click on a board to view pins in a masonry layout.
+   - The layout is designed to be responsive and Pinterest-like.
+
+3. **Managing Pins**:
+   - Users can manage pins on a board by clicking on the pin and using the provided options.
+   - This includes actions like editing, deleting, or adding new pins.
+
+4. **Searching and Filtering**:
+   - Users can search for specific boards or pins using the search bar.
+   - Filters can be applied to narrow down the results.
+
+## Implementation Details
+
+- **Data Retrieval**: Pins are fetched from DynamoDB and cached on disk.
+- **Layout**: Pins are displayed in a masonry layout for a Pinterest-like experience.
+- **Search and Filter**: Pins are searchable and filterable based on various criteria.
+
+## Error Handling
+
+- **DynamoDB Errors**: All DynamoDB operations are wrapped in try/catch blocks, with detailed error logging and fallback to mock data if needed.
+- **Cache Errors**: Disk I/O errors are handled gracefully, with fallback to direct DynamoDB queries if the cache is unavailable.
+- **Monitoring**: The app exposes cache statistics and health metrics in the UI for transparency and debugging.
+
+## Pinterest Account Management
+
+This section provides detailed information about the Pinterest account management feature of the application.
+
+## Features
+
+- **Account Verification**: Users can verify their Pinterest account.
+- **Account Management**: Users can manage multiple Pinterest accounts.
+
+## Usage
+
+1. **Adding a Pinterest Account**:
+   - Navigate to the Pinterest Accounts section in the application.
+   - Enter a Pinterest username and click "Verify & Add".
+   - The app will verify the account by querying DynamoDB and load all boards/pins if found.
+
+2. **Managing Multiple Accounts**:
+   - Users can manage multiple Pinterest accounts in the application.
+   - This includes adding new accounts and verifying existing ones.
+
+## Implementation Details
+
+- **Data Retrieval**: Accounts and boards are fetched from DynamoDB and cached on disk.
+- **Verification**: The app verifies the account by querying DynamoDB.
+- **Account Management**: Users can manage multiple accounts in the application.
+
+## Error Handling
+
+- **DynamoDB Errors**: All DynamoDB operations are wrapped in try/catch blocks, with detailed error logging and fallback to mock data if needed.
+- **Cache Errors**: Disk I/O errors are handled gracefully, with fallback to direct DynamoDB queries if the cache is unavailable.
+- **Monitoring**: The app exposes cache statistics and health metrics in the UI for transparency and debugging.
+
+# Pinterest Board Manager
+
+This section provides detailed information about the Pinterest board manager feature of the application.
+
+## Features
+
+- **Board Management**: Users can view and manage their Pinterest boards.
+- **Pin Management**: Users can view and manage their pins on boards.
+- **Search and Filter**: Users can search and filter boards and pins.
+- **Responsive Layout**: Pins are displayed in a responsive, masonry-style layout.
+
+## Usage
+
+1. **Accessing the Pinterest Boards Page**:
+   - Navigate to the Pinterest Boards section in the application.
+   - This section allows users to view and manage their Pinterest boards.
+
+2. **Viewing Boards**:
+   - Users can click on a board to view pins in a masonry layout.
+   - The layout is designed to be responsive and Pinterest-like.
+
+3. **Managing Pins**:
+   - Users can manage pins on a board by clicking on the pin and using the provided options.
+   - This includes actions like editing, deleting, or adding new pins.
+
+4. **Searching and Filtering**:
+   - Users can search for specific boards or pins using the search bar.
+   - Filters can be applied to narrow down the results.
+
+## Implementation Details
+
+- **Data Retrieval**: Pins are fetched from DynamoDB and cached on disk.
+- **Layout**: Pins are displayed in a masonry layout for a Pinterest-like experience.
+- **Search and Filter**: Pins are searchable and filterable based on various criteria.
+
+## Error Handling
+
+- **DynamoDB Errors**: All DynamoDB operations are wrapped in try/catch blocks, with detailed error logging and fallback to mock data if needed.
+- **Cache Errors**: Disk I/O errors are handled gracefully, with fallback to direct DynamoDB queries if the cache is unavailable.
+- **Monitoring**: The app exposes cache statistics and health metrics in the UI for transparency and debugging.
+
+## Pinterest Account Management
+
+This section provides detailed information about the Pinterest account management feature of the application.
+
+## Features
+
+- **Account Verification**: Users can verify their Pinterest account.
+- **Account Management**: Users can manage multiple Pinterest accounts.
+
+## Usage
+
+1. **Adding a Pinterest Account**:
+   - Navigate to the Pinterest Accounts section in the application.
+   - Enter a Pinterest username and click "Verify & Add".
+   - The app will verify the account by querying DynamoDB and load all boards/pins if found.
+
+2. **Managing Multiple Accounts**:
+   - Users can manage multiple Pinterest accounts in the application.
+   - This includes adding new accounts and verifying existing ones.
+
+## Implementation Details
+
+- **Data Retrieval**: Accounts and boards are fetched from DynamoDB and cached on disk.
+- **Verification**: The app verifies the account by querying DynamoDB.
+- **Account Management**: Users can manage multiple accounts in the application.
+
+## Error Handling
+
+- **DynamoDB Errors**: All DynamoDB operations are wrapped in try/catch blocks, with detailed error logging and fallback to mock data if needed.
+- **Cache Errors**: Disk I/O errors are handled gracefully, with fallback to direct DynamoDB queries if the cache is unavailable.
+- **Monitoring**: The app exposes cache statistics and health metrics in the UI for transparency and debugging.
+
+# Pinterest Board Manager
+
+This section provides detailed information about the Pinterest board manager feature of the application.
+
+## Features
+
+- **Board Management**: Users can view and manage their Pinterest boards.
+- **Pin Management**: Users can view and manage their pins on boards.
+- **Search and Filter**: Users can search and filter boards and pins.
+- **Responsive Layout**: Pins are displayed in a responsive, masonry-style layout.
+
+## Usage
+
+1. **Accessing the Pinterest Boards Page**:
+   - Navigate to the Pinterest Boards section in the application.
+   - This section allows users to view and manage their Pinterest boards.
+
+2. **Viewing Boards**:
+   - Users can click on a board to view pins in a masonry layout.
+   - The layout is designed to be responsive and Pinterest-like.
+
+3. **Managing Pins**:
+   - Users can manage pins on a board by clicking on the pin and using the provided options.
+   - This includes actions like editing, deleting, or adding new pins.
+
+4. **Searching and Filtering**:
+   - Users can search for specific boards or pins using the search bar.
+   - Filters can be applied to narrow down the results.
+
+## Implementation Details
+
+- **Data Retrieval**: Pins are fetched from DynamoDB and cached on disk.
+- **Layout**: Pins are displayed in a masonry layout for a Pinterest-like experience.
+- **Search and Filter**: Pins are searchable and filterable based on various criteria.
+
+## Error Handling
+
+- **DynamoDB Errors**: All DynamoDB operations are wrapped in try/catch blocks, with detailed error logging and fallback to mock data if needed.
+- **Cache Errors**: Disk I/O errors are handled gracefully, with fallback to direct DynamoDB queries if the cache is unavailable.
+- **Monitoring**: The app exposes cache statistics and health metrics in the UI for transparency and debugging.
+
+## Pinterest Account Management
+
+This section provides detailed information about the Pinterest account management feature of the application.
+
+## Features
+
+- **Account Verification**: Users can verify their Pinterest account.
+- **Account Management**: Users can manage multiple Pinterest accounts.
+
+## Usage
+
+1. **Adding a Pinterest Account**:
+   - Navigate to the Pinterest Accounts section in the application.
+   - Enter a Pinterest username and click "Verify & Add".
+   - The app will verify the account by querying DynamoDB and load all boards/pins if found.
+
+2. **Managing Multiple Accounts**:
+   - Users can manage multiple Pinterest accounts in the application.
+   - This includes adding new accounts and verifying existing ones.
+
+## Implementation Details
+
+- **Data Retrieval**: Accounts and boards are fetched from DynamoDB and cached on disk.
+- **Verification**: The app verifies the account by querying DynamoDB.
+- **Account Management**: Users can manage multiple accounts in the application.
+
+## Error Handling
+
+- **DynamoDB Errors**: All DynamoDB operations are wrapped in try/catch blocks, with detailed error logging and fallback to mock data if needed.
+- **Cache Errors**: Disk I/O errors are handled gracefully, with fallback to direct DynamoDB queries if the cache is unavailable.
+- **Monitoring**: The app exposes cache statistics and health metrics in the UI for transparency and debugging.
+
+# Pinterest Board Manager
+
+This section provides detailed information about the Pinterest board manager feature of the application.
+
+## Features
+
+- **Board Management**: Users can view and manage their Pinterest boards.
+- **Pin Management**: Users can view and manage their pins on boards.
+- **Search and Filter**: Users can search and filter boards and pins.
+- **Responsive Layout**: Pins are displayed in a responsive, masonry-style layout.
+
+## Usage
+
+1. **Accessing the Pinterest Boards Page**:
+   - Navigate to the Pinterest Boards section in the application.
+   - This section allows users to view and manage their Pinterest boards.
+
+2. **Viewing Boards**:
+   - Users can click on a board to view pins in a masonry layout.
+   - The layout is designed to be responsive and Pinterest-like.
+
+3. **Managing Pins**:
+   - Users can manage pins on a board by clicking on the pin and using the provided options.
+   - This includes actions like editing, deleting, or adding new pins.
+
+4. **Searching and Filtering**:
+   - Users can search for specific boards or pins using the search bar.
+   - Filters can be applied to narrow down the results.
+
+## Implementation Details
+
+- **Data Retrieval**: Pins are fetched from DynamoDB and cached on disk.
+- **Layout**: Pins are displayed in a masonry layout for a Pinterest-like experience.
+- **Search and Filter**: Pins are searchable and filterable based on various criteria.
+
+## Error Handling
+
+- **DynamoDB Errors**: All DynamoDB operations are wrapped in try/catch blocks, with detailed error logging and fallback to mock data if needed.
+- **Cache Errors**: Disk I/O errors are handled gracefully, with fallback to direct DynamoDB queries if the cache is unavailable.
+- **Monitoring**: The app exposes cache statistics and health metrics in the UI for transparency and debugging.
+
+## Pinterest Account Management
+
+This section provides detailed information about the Pinterest account management feature of the application.
+
+## Features
+
+- **Account Verification**: Users can verify their Pinterest account.
+- **Account Management**: Users can manage multiple Pinterest accounts.
+
+## Usage
+
+1. **Adding a Pinterest Account**:
+   - Navigate to the Pinterest Accounts section in the application.
+   - Enter a Pinterest username and click "Verify & Add".
+   - The app will verify the account by querying DynamoDB and load all boards/pins if found.
+
+2. **Managing Multiple Accounts**:
+   - Users can manage multiple Pinterest accounts in the application.
+   - This includes adding new accounts and verifying existing ones.
+
+## Implementation Details
+
+- **Data Retrieval**: Accounts and boards are fetched from DynamoDB and cached on disk.
+- **Verification**: The app verifies the account by querying DynamoDB.
+- **Account Management**: Users can manage multiple accounts in the application.
+
+## Error Handling
+
+- **DynamoDB Errors**: All DynamoDB operations are wrapped in try/catch blocks, with detailed error logging and fallback to mock data if needed.
+- **Cache Errors**: Disk I/O errors are handled gracefully, with fallback to direct DynamoDB queries if the cache is unavailable.
+- **Monitoring**: The app exposes cache statistics and health metrics in the UI for transparency and debugging.
+
+# Pinterest Board Manager
+
+This section provides detailed information about the Pinterest board manager feature of the application.
+
+## Features
+
+- **Board Management**: Users can view and manage their Pinterest boards.
+- **Pin Management**: Users can view and manage their pins on boards.
+- **Search and Filter**: Users can search and filter boards and pins.
+- **Responsive Layout**: Pins are displayed in a responsive, masonry-style layout.
+
+## Usage
+
+1. **Accessing the Pinterest Boards Page**:
+   - Navigate to the Pinterest Boards section in the application.
+   - This section allows users to view and manage their Pinterest boards.
+
+2. **Viewing Boards**:
+   - Users can click on a board to view pins in a masonry layout.
+   - The layout is designed to be responsive and Pinterest-like.
+
+3. **Managing Pins**:
+   - Users can manage pins on a board by clicking on the pin and using the provided options.
+   - This includes actions like editing, deleting, or adding new pins.
+
+4. **Searching and Filtering**:
+   - Users can search for specific boards or pins using the search bar.
+   - Filters can be applied to narrow down the results.
+
+## Implementation Details
+
+- **Data Retrieval**: Pins are fetched from DynamoDB and cached on disk.
+- **Layout**: Pins are displayed in a masonry layout for a Pinterest-like experience.
+- **Search and Filter**: Pins are searchable and filterable based on various criteria.
+
+## Error Handling
+
+- **DynamoDB Errors**: All DynamoDB operations are wrapped in try/catch blocks, with detailed error logging and fallback to mock data if needed.
+- **Cache Errors**: Disk I/O errors are handled gracefully, with fallback to direct DynamoDB queries if the cache is unavailable.
+- **Monitoring**: The app exposes cache statistics and health metrics in the UI for transparency and debugging.
+
+## Pinterest Account Management
+
+This section provides detailed information about the Pinterest account management feature of the application.
+
+## Features
+
+- **Account Verification**: Users can verify their Pinterest account.
+- **Account Management**: Users can manage multiple Pinterest accounts.
+
+## Usage
+
+1. **Adding a Pinterest Account**:
+   - Navigate to the Pinterest Accounts section in the application.
+   - Enter a Pinterest username and click "Verify & Add".
+   - The app will verify the account by querying DynamoDB and load all boards/pins if found.
+
+2. **Managing Multiple Accounts**:
+   - Users can manage multiple Pinterest accounts in the application.
+   - This includes adding new accounts and verifying existing ones.
+
+## Implementation Details
+
+- **Data Retrieval**: Accounts and boards are fetched from DynamoDB and cached on disk.
+- **Verification**: The app verifies the account by querying DynamoDB.
+- **Account Management**: Users can manage multiple accounts in the application.
+
+## Error Handling
+
+- **DynamoDB Errors**: All DynamoDB operations are wrapped in try/catch blocks, with detailed error logging and fallback to mock data if needed.
+- **Cache Errors**: Disk I/O errors are handled gracefully, with fallback to direct DynamoDB queries if the cache is unavailable.
+- **Monitoring**: The app exposes cache statistics and health metrics in the UI for transparency and debugging.
+
+# Pinterest Board Manager
+
+This section provides detailed information about the Pinterest board manager feature of the application.
+
+## Features
+
+- **Board Management**: Users can view and manage their Pinterest boards.
+- **Pin Management**: Users can view and manage their pins on boards.
+- **Search and Filter**: Users can search and filter boards and pins.
+- **Responsive Layout**: Pins are displayed in a responsive, masonry-style layout.
+
+## Usage
+
+1. **Accessing the Pinterest Boards Page**:
+   - Navigate to the Pinterest Boards section in the application.
+   - This section allows users to view and manage their Pinterest boards.
+
+2. **Viewing Boards**:
+   - Users can click on a board to view pins in a masonry layout.
+   - The layout is designed to be responsive and Pinterest-like.
+
+3. **Managing Pins**:
+   - Users can manage pins on a board by clicking on the pin and using the provided options.
+   - This includes actions like editing, deleting, or adding new pins.
+
+4. **Searching and Filtering**:
+   - Users can search for specific boards or pins using the search bar.
+   - Filters can be applied to narrow down the results.
+
+## Implementation Details
+
+- **Data Retrieval**: Pins are fetched from DynamoDB and cached on disk.
+- **Layout**: Pins are displayed in a masonry layout for a Pinterest-like experience.
+- **Search and Filter**: Pins are searchable and filterable based on various criteria.
+
+## Error Handling
+
+- **DynamoDB Errors**: All DynamoDB operations are wrapped in try/catch blocks, with detailed error logging and fallback to mock data if needed.
+- **Cache Errors**: Disk I/O errors are handled gracefully, with fallback to direct DynamoDB queries if the cache is unavailable.
+- **Monitoring**: The app exposes cache statistics and health metrics in the UI for transparency and debugging.
+
+## Pinterest Account Management
+
+This section provides detailed information about the Pinterest account management feature of the application.
+
+## Features
+
+- **Account Verification**: Users can verify their Pinterest account.
+- **Account Management**: Users can manage multiple Pinterest accounts.
+
+## Usage
+
+1. **Adding a Pinterest Account**:
+   - Navigate to the Pinterest Accounts section in the application.
+   - Enter a Pinterest username and click "Verify & Add".
+   - The app will verify the account by querying DynamoDB and load all boards/pins if found.
+
+2. **Managing Multiple Accounts**:
+   - Users can manage multiple Pinterest accounts in the application.
+   - This includes adding new accounts and verifying existing ones.
+
+## Implementation Details
+
+- **Data Retrieval**: Accounts and boards are fetched from DynamoDB and cached on disk.
+- **Verification**: The app verifies the account by querying DynamoDB.
+- **Account Management**: Users can manage multiple accounts in the application.
+
+## Error Handling
+
+- **DynamoDB Errors**: All DynamoDB operations are wrapped in try/catch blocks, with detailed error logging and fallback to mock data if needed.
+- **Cache Errors**: Disk I/O errors are handled gracefully, with fallback to direct DynamoDB queries if the cache is unavailable.
+- **Monitoring**: The app exposes cache statistics and health metrics in the UI for transparency and debugging.
+
+# Pinterest Board Manager
+
+This section provides detailed information about the Pinterest board manager feature of the application.
+
+## Features
+
+- **Board Management**: Users can view and manage their Pinterest boards.
+- **Pin Management**: Users can view and manage their pins on boards.
+- **Search and Filter**: Users can search and filter boards and pins.
+- **Responsive Layout**: Pins are displayed in a responsive, masonry-style layout.
+
+## Usage
+
+1. **Accessing the Pinterest Boards Page**:
+   - Navigate to the Pinterest Boards section in the application.
+   - This section allows users to view and manage their Pinterest boards.
+
+2. **Viewing Boards**:
+   - Users can click on a board to view pins in a masonry layout.
+   - The layout is designed to be responsive and Pinterest-like.
+
+3. **Managing Pins**:
+   - Users can manage pins on a board by clicking on the pin and using the provided options.
+   - This includes actions like editing, deleting, or adding new pins.
+
+4. **Searching and Filtering**:
+   - Users can search for specific boards or pins using the search bar.
+   - Filters can be applied to narrow down the results.
+
+## Implementation Details
+
+- **Data Retrieval**: Pins are fetched from DynamoDB and cached on disk.
+- **Layout**: Pins are displayed in a masonry layout for a Pinterest-like experience.
+- **Search and Filter**: Pins are searchable and filterable based on various criteria.
+
+## Error Handling
+
+- **DynamoDB Errors**: All DynamoDB operations are wrapped in try/catch blocks, with detailed error logging and fallback to mock data if needed.
+- **Cache Errors**: Disk I/O errors are handled gracefully, with fallback to direct DynamoDB queries if the cache is unavailable.
+- **Monitoring**: The app exposes cache statistics and health metrics in the UI for transparency and debugging.
+
+## Pinterest Account Management
+
+This section provides detailed information about the Pinterest account management feature of the application.
+
+## Features
+
+- **Account Verification**: Users can verify their Pinterest account.
+- **Account Management**: Users can manage multiple Pinterest accounts.
+
+## Usage
+
+1. **Adding a Pinterest Account**:
+   - Navigate to the Pinterest Accounts section in the application.
+   - Enter a Pinterest username and click "Verify & Add".
+   - The app will verify the account by querying DynamoDB and load all boards/pins if found.
+
+2. **Managing Multiple Accounts**:
+   - Users can manage multiple Pinterest accounts in the application.
+   - This includes adding new accounts and verifying existing ones.
+
+## Implementation Details
+
+- **Data Retrieval**: Accounts and boards are fetched from DynamoDB and cached on disk.
+- **Verification**: The app verifies the account by querying DynamoDB.
+- **Account Management**: Users can manage multiple accounts in the application.
+
+## Error Handling
+
+- **DynamoDB Errors**: All DynamoDB operations are wrapped in try/catch blocks, with detailed error logging and fallback to mock data if needed.
+- **Cache Errors**: Disk I/O errors are handled gracefully, with fallback to direct DynamoDB queries if the cache is unavailable.
+- **Monitoring**: The app exposes cache statistics and health metrics in the UI for transparency and debugging.
+
+# Pinterest Board Manager
+
+This section provides detailed information about the Pinterest board manager feature of the application.
+
+## Features
+
+- **Board Management**: Users can view and manage their Pinterest boards.
+- **Pin Management**: Users can view and manage their pins on boards.
+- **Search and Filter**: Users can search and filter boards and pins.
+- **Responsive Layout**: Pins are displayed in a responsive, masonry-style layout.
+
+## Usage
+
+1. **Accessing the Pinterest Boards Page**:
+   - Navigate to the Pinterest Boards section in the application.
+   - This section allows users to view and manage their Pinterest boards.
+
+2. **Viewing Boards**:
+   - Users can click on a board to view pins in a masonry layout.
+   - The layout is designed to be responsive and Pinterest-like.
+
+3. **Managing Pins**:
+   - Users can manage pins on a board by clicking on the pin and using the provided options.
+   - This includes actions like editing, deleting, or adding new pins.
+
+4. **Searching and Filtering**:
+   - Users can search for specific boards or pins using the search bar.
+   - Filters can be applied to narrow down the results.
+
+## Implementation Details
+
+- **Data Retrieval**: Pins are fetched from DynamoDB and cached on disk.
+- **Layout**: Pins are displayed in a masonry layout for a Pinterest-like experience.
+- **Search and Filter**: Pins are searchable and filterable based on various criteria.
+
+## Error Handling
+
+- **DynamoDB Errors**: All DynamoDB operations are wrapped in try/catch blocks, with detailed error logging and fallback to mock data if needed.
+- **Cache Errors**: Disk I/O errors are handled gracefully, with fallback to direct DynamoDB queries if the cache is unavailable.
+- **Monitoring**: The app exposes cache statistics and health metrics in the UI for transparency and debugging.
+
+## Pinterest Account Management
+
+This section provides detailed information about the Pinterest account management feature of the application.
+
+## Features
+
+- **Account Verification**: Users can verify their Pinterest account.
+- **Account Management**: Users can manage multiple Pinterest accounts.
+
+## Usage
+
+1. **Adding a Pinterest Account**:
+   - Navigate to the Pinterest Accounts section in the application.
+   - Enter a Pinterest username and click "Verify & Add".
+   - The app will verify the account by querying DynamoDB and load all boards/pins if found.
+
+2. **Managing Multiple Accounts**:
+   - Users can manage multiple Pinterest accounts in the application.
+   - This includes adding new accounts and verifying existing ones.
+
+## Implementation Details
+
+- **Data Retrieval**: Accounts and boards are fetched from DynamoDB and cached on disk.
+- **Verification**: The app verifies the account by querying DynamoDB.
+- **Account Management**: Users can manage multiple accounts in the application.
+
+## Error Handling
+
+- **DynamoDB Errors**: All DynamoDB operations are wrapped in try/catch blocks, with detailed error logging and fallback to mock data if needed.
+- **Cache Errors**: Disk I/O errors are handled gracefully, with fallback to direct DynamoDB queries if the cache is unavailable.
+- **Monitoring**: The app exposes cache statistics and health metrics in the UI for transparency and debugging.
+
+# Pinterest Board Manager
+
+This section provides detailed information about the Pinterest board manager feature of the application.
+
+## Features
+
+- **Board Management**: Users can view and manage their Pinterest boards.
+- **Pin Management**: Users can view and manage their pins on boards.
+- **Search and Filter**: Users can search and filter boards and pins.
+- **Responsive Layout**: Pins are displayed in a responsive, masonry-style layout.
+
+## Usage
+
+1. **Accessing the Pinterest Boards Page**:
+   - Navigate to the Pinterest Boards section in the application.
+   - This section allows users to view and manage their Pinterest boards.
+
+2. **Viewing Boards**:
+   - Users can click on a board to view pins in a masonry layout.
+   - The layout is designed to be responsive and Pinterest-like.
+
+3. **Managing Pins**:
+   - Users can manage pins on a board by clicking on the pin and using the provided options.
+   - This includes actions like editing, deleting, or adding new pins.
+
+4. **Searching and Filtering**:
+   - Users can search for specific boards or pins using the search bar.
+   - Filters can be applied to narrow down the results.
+
+## Implementation Details
+
+- **Data Retrieval**: Pins are fetched from DynamoDB and cached on disk.
+- **Layout**: Pins are displayed in a masonry layout for a Pinterest-like experience.
+- **Search and Filter**: Pins are searchable and filterable based on various criteria.
+
+## Error Handling
+
+- **DynamoDB Errors**: All DynamoDB operations are wrapped in try/catch blocks, with detailed error logging and fallback to mock data if needed.
+- **Cache Errors**: Disk I/O errors are handled gracefully, with fallback to direct DynamoDB queries if the cache is unavailable.
+- **Monitoring**: The app exposes cache statistics and health metrics in the UI for transparency and debugging.
+
+## Pinterest Account Management
+
+This section provides detailed information about the Pinterest account management feature of the application.
+
+## Features
+
+- **Account Verification**: Users can verify their Pinterest account.
+- **Account Management**: Users can manage multiple Pinterest accounts.
+
+## Usage
+
+1. **Adding a Pinterest Account**:
+   - Navigate to the Pinterest Accounts section in the application.
+   - Enter a Pinterest username and click "Verify & Add".
+   - The app will verify the account by querying DynamoDB and load all boards/pins if found.
+
+2. **Managing Multiple Accounts**:
+   - Users can manage multiple Pinterest accounts in the application.
+   - This includes adding new accounts and verifying existing ones.
+
+## Implementation Details
+
+- **Data Retrieval**: Accounts and boards are fetched from DynamoDB and cached on disk.
+- **Verification**: The app verifies the account by querying DynamoDB.
+- **Account Management**: Users can manage multiple accounts in the application.
+
+## Error Handling
+
+- **DynamoDB Errors**: All DynamoDB operations are wrapped in try/catch blocks, with detailed error logging and fallback to mock data if needed.
+- **Cache Errors**: Disk I/O errors are handled gracefully, with fallback to direct DynamoDB queries if the cache is unavailable.
+- **Monitoring**: The app exposes cache statistics and health metrics in the UI for transparency and debugging.
+
+# Pinterest Board Manager
+
+This section provides detailed information about the Pinterest board manager feature of the application.
+
+## Features
+
+- **Board Management**: Users can view and manage their Pinterest boards.
+- **Pin Management**: Users can view and manage their pins on boards.
+- **Search and Filter**: Users can search and filter boards and pins.
+- **Responsive Layout**: Pins are displayed in a responsive, masonry-style layout.
+
+## Usage
+
+1. **Accessing the Pinterest Boards Page**:
+   - Navigate to the Pinterest Boards section in the application.
+   - This section allows users to view and manage their Pinterest boards.
+
+2. **Viewing Boards**:
+   - Users can click on a board to view pins in a masonry layout.
+   - The layout is designed to be responsive and Pinterest-like.
+
+3. **Managing Pins**:
+   - Users can manage pins on a board by clicking on the pin and using the provided options.
+   - This includes actions like editing, deleting, or adding new pins.
+
+4. **Searching and Filtering**:
+   - Users can search for specific boards or pins using the search bar.
+   - Filters can be applied to narrow down the results.
+
+## Implementation Details
+
+- **Data Retrieval**: Pins are fetched from DynamoDB and cached on disk.
+- **Layout**: Pins are displayed in a masonry layout for a Pinterest-like experience.
+- **Search and Filter**: Pins are searchable and filterable based on various criteria.
+
+## Error Handling
+
+- **DynamoDB Errors**: All DynamoDB operations are wrapped in try/catch blocks, with detailed error logging and fallback to mock data if needed.
+- **Cache Errors**: Disk I/O errors are handled gracefully, with fallback to direct DynamoDB queries if the cache is unavailable.
+- **Monitoring**: The app exposes cache statistics and health metrics in the UI for transparency and debugging.
+
+## Pinterest Account Management
+
+This section provides detailed information about the Pinterest account management feature of the application.
+
+## Features
+
+- **Account Verification**: Users can verify their Pinterest account.
+- **Account Management**: Users can manage multiple Pinterest accounts.
+
+## Usage
+
+1. **Adding a Pinterest Account**:
+   - Navigate to the Pinterest Accounts section in the application.
+   - Enter a Pinterest username and click "Verify & Add".
+   - The app will verify the account by querying DynamoDB and load all boards/pins if found.
+
+2. **Managing Multiple Accounts**:
+   - Users can manage multiple Pinterest accounts in the application.
+   - This includes adding new accounts and verifying existing ones.
+
+## Implementation Details
+
+- **Data Retrieval**: Accounts and boards are fetched from DynamoDB and cached on disk.
+- **Verification**: The app verifies the account by querying DynamoDB.
+- **Account Management**: Users can manage multiple accounts in the application.
+
+## Error Handling
+
+- **DynamoDB Errors**: All DynamoDB operations are wrapped in try/catch blocks, with detailed error logging and fallback to mock data if needed.
+- **Cache Errors**: Disk I/O errors are handled gracefully, with fallback to direct DynamoDB queries if the cache is unavailable.
+- **Monitoring**: The app exposes cache statistics and health metrics in the UI for transparency and debugging.
+
+# Pinterest Board Manager
+
+This section provides detailed information about the Pinterest board manager feature of the application.
+
+## Features
+
+- **Board Management**: Users can view and manage their Pinterest boards.
+- **Pin Management**: Users can view and manage their pins on boards.
+- **Search and Filter**: Users can search and filter boards and pins.
+- **Responsive Layout**: Pins are displayed in a responsive, masonry-style layout.
+
+## Usage
+
+1. **Accessing the Pinterest Boards Page**:
+   - Navigate to the Pinterest Boards section in the application.
+   - This section allows users to view and manage their Pinterest boards.
+
+2. **Viewing Boards**:
+   - Users can click on a board to view pins in a masonry layout.
+   - The layout is designed to be responsive and Pinterest-like.
+
+3. **Managing Pins**:
+   - Users can manage pins on a board by clicking on the pin and using the provided options.
+   - This includes actions like editing, deleting, or adding new pins.
+
+4. **Searching and Filtering**:
+   - Users can search for specific boards or pins using the search bar.
+   - Filters can be applied to narrow down the results.
+
+## Implementation Details
+
+- **Data Retrieval**: Pins are fetched from DynamoDB and cached on disk.
+- **Layout**: Pins are displayed in a masonry layout for a Pinterest-like experience.
+- **Search and Filter**: Pins are searchable and filterable based on various criteria.
+
+## Error Handling
+
+- **DynamoDB Errors**: All DynamoDB operations are wrapped in try/catch blocks, with detailed error logging and fallback to mock data if needed.
+- **Cache Errors**: Disk I/O errors are handled gracefully, with fallback to direct DynamoDB queries if the cache is unavailable.
+- **Monitoring**: The app exposes cache statistics and health metrics in the UI for transparency and debugging.
+
+## Pinterest Account Management
+
+This section provides detailed information about the Pinterest account management feature of the application.
+
+## Features
+
+- **Account Verification**: Users can verify their Pinterest account.
+- **Account Management**: Users can manage multiple Pinterest accounts.
+
+## Usage
+
+1. **Adding a Pinterest Account**:
+   - Navigate to the Pinterest Accounts section in the application.
+   - Enter a Pinterest username and click "Verify & Add".
+   - The app will verify the account by querying DynamoDB and load all boards/pins if found.
+
+2. **Managing Multiple Accounts**:
+   - Users can manage multiple Pinterest accounts in the application.
+   - This includes adding new accounts and verifying existing ones.
+
+## Implementation Details
+
+- **Data Retrieval**: Accounts and boards are fetched from DynamoDB and cached on disk.
+- **Verification**: The app verifies the account by querying DynamoDB.
+- **Account Management**: Users can manage multiple accounts in the application.
+
+## Error Handling
+
+- **DynamoDB Errors**: All DynamoDB operations are wrapped in try/catch blocks, with detailed error logging and fallback to mock data if needed.
+- **Cache Errors**: Disk I/O errors are handled gracefully, with fallback to direct DynamoDB queries if the cache is unavailable.
+- **Monitoring**: The app exposes cache statistics and health metrics in the UI for transparency and debugging.
+
+# Pinterest Board Manager
+
+This section provides detailed information about the Pinterest board manager feature of the application.
+
+## Features
+
+- **Board Management**: Users can view and manage their Pinterest boards.
+- **Pin Management**: Users can view and manage their pins on boards.
+- **Search and Filter**: Users can search and filter boards and pins.
+- **Responsive Layout**: Pins are displayed in a responsive, masonry-style layout.
+
+## Usage
+
+1. **Accessing the Pinterest Boards Page**:
+   - Navigate to the Pinterest Boards section in the application.
+   - This section allows users to view and manage their Pinterest boards.
+
+2. **Viewing Boards**:
+   - Users can click on a board to view pins in a masonry layout.
+   - The layout is designed to be responsive and Pinterest-like.
+
+3. **Managing Pins**:
+   - Users can manage pins on a board by clicking on the pin and using the provided options.
+   - This includes actions like editing, deleting, or adding new pins.
+
+4. **Searching and Filtering**:
+   - Users can search for specific boards or pins using the search bar.
+   - Filters can be applied to narrow down the results.
+
+## Implementation Details
+
+- **Data Retrieval**: Pins are fetched from DynamoDB and cached on disk.
+- **Layout**: Pins are displayed in a masonry layout for a Pinterest-like experience.
+- **Search and Filter**: Pins are searchable and filterable based on various criteria.
+
+## Error Handling
+
+- **DynamoDB Errors**: All DynamoDB operations are wrapped in try/catch blocks, with detailed error logging and fallback to mock data if needed.
+- **Cache Errors**: Disk I/O errors are handled gracefully, with fallback to direct DynamoDB queries if the cache is unavailable.
+- **Monitoring**: The app exposes cache statistics and health metrics in the UI for transparency and debugging.
+
+## Pinterest Account Management
+
+This section provides detailed information about the Pinterest account management feature of the application.
+
+## Features
+
+- **Account Verification**: Users can verify their Pinterest account.
+- **Account Management**: Users can manage multiple Pinterest accounts.
+
+## Usage
+
+1. **Adding a Pinterest Account**:
+   - Navigate to the Pinterest Accounts section in the application.
+   - Enter a Pinterest username and click "Verify & Add".
+   - The app will verify the account by querying DynamoDB and load all boards/pins if found.
+
+2. **Managing Multiple Accounts**:
+   - Users can manage multiple Pinterest accounts in the application.
+   - This includes adding new accounts and verifying existing ones.
+
+## Implementation Details
+
+- **Data Retrieval**: Accounts and boards are fetched from DynamoDB and cached on disk.
+- **Verification**: The app verifies the account by querying DynamoDB.
+- **Account Management**: Users can manage multiple accounts in the application.
+
+## Error Handling
+
+- **DynamoDB Errors**: All DynamoDB operations are wrapped in try/catch blocks, with detailed error logging and fallback to mock data if needed.
+- **Cache Errors**: Disk I/O errors are handled gracefully, with fallback to direct DynamoDB queries if the cache is unavailable.
+- **Monitoring**: The app exposes cache statistics and health metrics in the UI for transparency and debugging.
+
+# Pinterest Board Manager
+
+This section provides detailed information about the Pinterest board manager feature of the application.
+
+## Features
+
+- **Board Management**: Users can view and manage their Pinterest boards.
+- **Pin Management**: Users can view and manage their pins on boards.
+- **Search and Filter**: Users can search and filter boards and pins.
+- **Responsive Layout**: Pins are displayed in a responsive, masonry-style layout.
+
+## Usage
+
+1. **Accessing the Pinterest Boards Page**:
+   - Navigate to the Pinterest Boards section in the application.
+   - This section allows users to view and manage their Pinterest boards.
+
+2. **Viewing Boards**:
+   - Users can click on a board to view pins in a masonry layout.
+   - The layout is designed to be responsive and Pinterest-like.
+
+3. **Managing Pins**:
+   - Users can manage pins on a board by clicking on the pin and using the provided options.
+   - This includes actions like editing, deleting, or adding new pins.
+
+4. **Searching and Filtering**:
+   - Users can search for specific boards or pins using the search bar.
+   - Filters can be applied to narrow down the results.
+
+## Implementation Details
+
+- **Data Retrieval**: Pins are fetched from DynamoDB and cached on disk.
+- **Layout**: Pins are displayed in a masonry layout for a Pinterest-like experience.
+- **Search and Filter**: Pins are searchable and filterable based on various criteria.
+
+## Error Handling
+
+- **DynamoDB Errors**: All DynamoDB operations are wrapped in try/catch blocks, with detailed error logging and fallback to mock data if needed.
+- **Cache Errors**: Disk I/O errors are handled gracefully, with fallback to direct DynamoDB queries if the cache is unavailable.
+- **Monitoring**: The app exposes cache statistics and health metrics in the UI for transparency and debugging.
+
+## Pinterest Account Management
+
+This section provides detailed information about the Pinterest account management feature of the application.
+
+## Features
+
+- **Account Verification**: Users can verify their Pinterest account.
+- **Account Management**: Users can manage multiple Pinterest accounts.
+
+## Usage
+
+1. **Adding a Pinterest Account**:
+   - Navigate to the Pinterest Accounts section in the application.
+   - Enter a Pinterest username and click "Verify & Add".
+   - The app will verify the account by querying DynamoDB and load all boards/pins if found.
+
+2. **Managing Multiple Accounts**:
+   - Users can manage multiple Pinterest accounts in the application.
+   - This includes adding new accounts and verifying existing ones.
+
+## Implementation Details
+
+- **Data Retrieval**: Accounts and boards are fetched from DynamoDB and cached on disk.
+- **Verification**: The app verifies the account by querying DynamoDB.
+- **Account Management**: Users can manage multiple accounts in the application.
+
+## Error Handling
+
+- **DynamoDB Errors**: All DynamoDB operations are wrapped in try/catch blocks, with detailed error logging and fallback to mock data if needed.
+- **Cache Errors**: Disk I/O errors are handled gracefully, with fallback to direct DynamoDB queries if the cache is unavailable.
+- **Monitoring**: The app exposes cache statistics and health metrics in the UI for transparency and debugging.
+
+# Pinterest Board Manager
+
+This section provides detailed information about the Pinterest board manager feature of the application.
+
+## Features
+
+- **Board Management**: Users can view and manage their Pinterest boards.
+- **Pin Management**: Users can view and manage their pins on boards.
+- **Search and Filter**: Users can search and filter boards and pins.
+- **Responsive Layout**: Pins are displayed in a responsive, masonry-style layout.
+
+## Usage
+
+1. **Accessing the Pinterest Boards Page**:
+   - Navigate to the Pinterest Boards section in the application.
+   - This section allows users to view and manage their Pinterest boards.
+
+2. **Viewing Boards**:
+   - Users can click on a board to view pins in a masonry layout.
+   - The layout is designed to be responsive and Pinterest-like.
+
+3. **Managing Pins**:
+   - Users can manage pins on a board by clicking on the pin and using the provided options.
+   - This includes actions like editing, deleting, or adding new pins.
+
+4. **Searching and Filtering**:
+   - Users can search for specific boards or pins using the search bar.
+   - Filters can be applied to narrow down the results.
+
+## Implementation Details
+
+- **Data Retrieval**: Pins are fetched from DynamoDB and cached on disk.
+- **Layout**: Pins are displayed in a masonry layout for a Pinterest-like experience.
+- **Search and Filter**: Pins are searchable and filterable based on various criteria.
+
+## Error Handling
+
+- **DynamoDB Errors**: All DynamoDB operations are wrapped in try/catch blocks, with detailed error logging and fallback to mock data if needed.
+- **Cache Errors**: Disk I/O errors are handled gracefully, with fallback to direct DynamoDB queries if the cache is unavailable.
+- **Monitoring**: The app exposes cache statistics and health metrics in the UI for transparency and debugging.
+
+## Pinterest Account Management
+
+This section provides detailed information about the Pinterest account management feature of the application.
+
+## Features
+
+- **Account Verification**: Users can verify their Pinterest account.
+- **Account Management**: Users can manage multiple Pinterest accounts.
+
+## Usage
+
+1. **Adding a Pinterest Account**:
+   - Navigate to the Pinterest Accounts section in the application.
+   - Enter a Pinterest username and click "Verify & Add".
+   - The app will verify the account by querying DynamoDB and load all boards/pins if found.
+
+2. **Managing Multiple Accounts**:
+   - Users can manage multiple Pinterest accounts in the application.
+   - This includes adding new accounts and verifying existing ones.
+
+## Implementation Details
+
+- **Data Retrieval**: Accounts and boards are fetched from DynamoDB and cached on disk.
+- **Verification**: The app verifies the account by querying DynamoDB.
+- **Account Management**: Users can manage multiple accounts in the application.
+
+## Error Handling
+
+- **DynamoDB Errors**: All DynamoDB operations are wrapped in try/catch blocks, with detailed error logging and fallback to mock data if needed.
+- **Cache Errors**: Disk I/O errors are handled gracefully, with fallback to direct DynamoDB queries if the cache is unavailable.
+- **Monitoring**: The app exposes cache statistics and health metrics in the UI for transparency and debugging.
+
+# Pinterest Board Manager
+
+This section provides detailed information about the Pinterest board manager feature of the application.
+
+## Features
+
+- **Board Management**: Users can view and manage their Pinterest boards.
+- **Pin Management**: Users can view and manage their pins on boards.
+- **Search and Filter**: Users can search and filter boards and pins.
+- **Responsive Layout**: Pins are displayed in a responsive, masonry-style layout.
+
+## Usage
+
+1. **Accessing the Pinterest Boards Page**:
+   - Navigate to the Pinterest Boards section in the application.
+   - This section allows users to view and manage their Pinterest boards.
+
+2. **Viewing Boards**:
+   - Users can click on a board to view pins in a masonry layout.
+   - The layout is designed to be responsive and Pinterest-like.
+
+3. **Managing Pins**:
+   - Users can manage pins on a board by clicking on the pin and using the provided options.
+   - This includes actions like editing, deleting, or adding new pins.
+
+4. **Searching and Filtering**:
+   - Users can search for specific boards or pins using the search bar.
+   - Filters can be applied to narrow down the results.
+
+## Implementation Details
+
+- **Data Retrieval**: Pins are fetched from DynamoDB and cached on disk.
+- **Layout**: Pins are displayed in a masonry layout for a Pinterest-like experience.
+- **Search and Filter**: Pins are searchable and filterable based on various criteria.
+
+## Error Handling
+
+- **DynamoDB Errors**: All DynamoDB operations are wrapped in try/catch blocks, with detailed error logging and fallback to mock data if needed.
+- **Cache Errors**: Disk I/O errors are handled gracefully, with fallback to direct DynamoDB queries if the cache is unavailable.
+- **Monitoring**: The app exposes cache statistics and health metrics in the UI for transparency and debugging.
+
+## Pinterest Account Management
+
+This section provides detailed information about the Pinterest account management feature of the application.
+
+## Features
+
+- **Account Verification**: Users can verify their Pinterest account.
+- **Account Management**: Users can manage multiple Pinterest accounts.
+
+## Usage
+
+1. **Adding a Pinterest Account**:
+   - Navigate to the Pinterest Accounts section in the application.
+   - Enter a Pinterest username and click "Verify & Add".
+   - The app will verify the account by querying DynamoDB and load all boards/pins if found.
+
+2. **Managing Multiple Accounts**:
+   - Users can manage multiple Pinterest accounts in the application.
+   - This includes adding new accounts and verifying existing ones.
+
+## Implementation Details
+
+- **Data Retrieval**: Accounts and boards are fetched from DynamoDB and cached on disk.
+- **Verification**: The app verifies the account by querying DynamoDB.
+- **Account Management**: Users can manage multiple accounts in the application.
+
+## Error Handling
+
+- **DynamoDB Errors**: All DynamoDB operations are wrapped in try/catch blocks, with detailed error logging and fallback to mock data if needed.
+- **Cache Errors**: Disk I/O errors are handled gracefully, with fallback to direct DynamoDB queries if the cache is unavailable.
+- **Monitoring**: The app exposes cache statistics and health metrics in the UI for transparency and debugging.
+
+# Pinterest Board Manager
+
+This section provides detailed information about the Pinterest board manager feature of the application.
+
+## Features
+
+- **Board Management**: Users can view and manage their Pinterest boards.
+- **Pin Management**: Users can view and manage their pins on boards.
+- **Search and Filter**: Users can search and filter boards and pins.
+- **Responsive Layout**: Pins are displayed in a responsive, masonry-style layout.
+
+## Usage
+
+1. **Accessing the Pinterest Boards Page**:
+   - Navigate to the Pinterest Boards section in the application.
+   - This section allows users to view and manage their Pinterest boards.
+
+2. **Viewing Boards**:
+   - Users can click on a board to view pins in a masonry layout.
+   - The layout is designed to be responsive and Pinterest-like.
+
+3. **Managing Pins**:
+   - Users can manage pins on a board by clicking on the pin and using the provided options.
+   - This includes actions like editing, deleting, or adding new pins.
+
+4. **Searching and Filtering**:
+   - Users can search for specific boards or pins using the search bar.
+   - Filters can be applied to narrow down the results.
+
+## Implementation Details
+
+- **Data Retrieval**: Pins are fetched from DynamoDB and cached on disk.
+- **Layout**: Pins are displayed in a masonry layout for a Pinterest-like experience.
+- **Search and Filter**: Pins are searchable and filterable based on various criteria.
+
+## Error Handling
+
+- **DynamoDB Errors**: All DynamoDB operations are wrapped in try/catch blocks, with detailed error logging and fallback to mock data if needed.
+- **Cache Errors**: Disk I/O errors are handled gracefully, with fallback to direct DynamoDB queries if the cache is unavailable.
+- **Monitoring**: The app exposes cache statistics and health metrics in the UI for transparency and debugging.
+
+## Pinterest Account Management
+
+This section provides detailed information about the Pinterest account management feature of the application.
+
+## Features
+
+- **Account Verification**: Users can verify their Pinterest account.
+- **Account Management**: Users can manage multiple Pinterest accounts.
+
+## Usage
+
+1. **Adding a Pinterest Account**:
+   - Navigate to the Pinterest Accounts section in the application.
+   - Enter a Pinterest username and click "Verify & Add".
+   - The app will verify the account by querying DynamoDB and load all boards/pins if found.
+
+2. **Managing Multiple Accounts**:
+   - Users can manage multiple Pinterest accounts in the application.
+   - This includes adding new accounts and verifying existing ones.
+
+## Implementation Details
+
+- **Data Retrieval**: Accounts and boards are fetched from DynamoDB and cached on disk.
+- **Verification**: The app verifies the account by querying DynamoDB.
+- **Account Management**: Users can manage multiple accounts in the application.
+
+## Error Handling
+
+- **DynamoDB Errors**: All DynamoDB operations are wrapped in try/catch blocks, with detailed error logging and fallback to mock data if needed.
+- **Cache Errors**: Disk I/O errors are handled gracefully, with fallback to direct DynamoDB queries if the cache is unavailable.
+- **Monitoring**: The app exposes cache statistics and health metrics in the UI for transparency and debugging.
+
+# Pinterest Board Manager
+
+This section provides detailed information about the Pinterest board manager feature of the application.
+
+## Features
+
+- **Board Management**: Users can view and manage their Pinterest boards.
+- **Pin Management**: Users can view and manage their pins on boards.
+- **Search and Filter**: Users can search and filter boards and pins.
+- **Responsive Layout**: Pins are displayed in a responsive, masonry-style layout.
+
+## Usage
+
+1. **Accessing the Pinterest Boards Page**:
+   - Navigate to the Pinterest Boards section in the application.
+   - This section allows users to view and manage their Pinterest boards.
+
+2. **Viewing Boards**:
+   - Users can click on a board to view pins in a masonry layout.
+   - The layout is designed to be responsive and Pinterest-like.
+
+3. **Managing Pins**:
+   - Users can manage pins on a board by clicking on the pin and using the provided options.
+   - This includes actions like editing, deleting, or adding new pins.
+
+4. **Searching and Filtering**:
+   - Users can search for specific boards or pins using the search bar.
+   - Filters can be applied to narrow down the results.
+
+## Implementation Details
+
+- **Data Retrieval**: Pins are fetched from DynamoDB and cached on disk.
+- **Layout**: Pins are displayed in a masonry layout for a Pinterest-like experience.
+- **Search and Filter**: Pins are searchable and filterable based on various criteria.
+
+## Error Handling
+
+- **DynamoDB Errors**: All DynamoDB operations are wrapped in try/catch blocks, with detailed error logging and fallback to mock data if needed.
+- **Cache Errors**: Disk I/O errors are handled gracefully, with fallback to direct DynamoDB queries if the cache is unavailable.
+- **Monitoring**: The app exposes cache statistics and health metrics in the UI for transparency and debugging.
+
+## Pinterest Account Management
+
+This section provides detailed information about the Pinterest account management feature of the application.
+
+## Features
+
+- **Account Verification**: Users can verify their Pinterest account.
+- **Account Management**: Users can manage multiple Pinterest accounts.
+
+## Usage
+
+1. **Adding a Pinterest Account**:
+   - Navigate to the Pinterest Accounts section in the application.
+   - Enter a Pinterest username and click "Verify & Add".
+   - The app will verify the account by querying DynamoDB and load all boards/pins if found.
+
+2. **Managing Multiple Accounts**:
+   - Users can manage multiple Pinterest accounts in the application.
+   - This includes adding new accounts and verifying existing ones.
+
+## Implementation Details
+
+- **Data Retrieval**: Accounts and boards are fetched from DynamoDB and cached on disk.
+- **Verification**: The app verifies the account by querying DynamoDB.
+- **Account Management**: Users can manage multiple accounts in the application.
+
+## Error Handling
+
+- **DynamoDB Errors**: All DynamoDB operations are wrapped in try/catch blocks, with detailed error logging and fallback to mock data if needed.
+- **Cache Errors**: Disk I/O errors are handled gracefully, with fallback to direct DynamoDB queries if the cache is unavailable.
+- **Monitoring**: The app exposes cache statistics and health metrics in the UI for transparency and debugging.
+
+# Pinterest Board Manager
+
+This section provides detailed information about the Pinterest board manager feature of the application.
+
+## Features
+
+- **Board Management**: Users can view and manage their Pinterest boards.
+- **Pin Management**: Users can view and manage their pins on boards.
+- **Search and Filter**: Users can search and filter boards and pins.
+- **Responsive Layout**: Pins are displayed in a responsive, masonry-style layout.
+
+## Usage
+
+1. **Accessing the Pinterest Boards Page**:
+   - Navigate to the Pinterest Boards section in the application.
+   - This section allows users to view and manage their Pinterest boards.
+
+2. **Viewing Boards**:
+   - Users can click on a board to view pins in a masonry layout.
+   - The layout is designed to be responsive and Pinterest-like.
+
+3. **Managing Pins**:
+   - Users can manage pins on a board by clicking on the pin and using the provided options.
+   - This includes actions like editing, deleting, or adding new pins.
+
+4. **Searching and Filtering**:
+   - Users can search for specific boards or pins using the search bar.
+   - Filters can be applied to narrow down the results.
+
+## Implementation Details
+
+- **Data Retrieval**: Pins are fetched from DynamoDB and cached on disk.
+- **Layout**: Pins are displayed in a masonry layout for a Pinterest-like experience.
+- **Search and Filter**: Pins are searchable and filterable based on various criteria.
+
+## Error Handling
+
+- **DynamoDB Errors**: All DynamoDB operations are wrapped in try/catch blocks, with detailed error logging and fallback to mock data if needed.
+- **Cache Errors**: Disk I/O errors are handled gracefully, with fallback to direct DynamoDB queries if the cache is unavailable.
+- **Monitoring**: The app exposes cache statistics and health metrics in the UI for transparency and debugging.
+
+## Pinterest Account Management
+
+This section provides detailed information about the Pinterest account management feature of the application.
+
+## Features
+
+- **Account Verification**: Users can verify their Pinterest account.
+- **Account Management**: Users can manage multiple Pinterest accounts.
+
+## Usage
+
+1. **Adding a Pinterest Account**:
+   - Navigate to the Pinterest Accounts section in the application.
+   - Enter a Pinterest username and click "Verify & Add".
+   - The app will verify the account by querying DynamoDB and load all boards/pins if found.
+
+2. **Managing Multiple Accounts**:
+   - Users can manage multiple Pinterest accounts in the application.
+   - This includes adding new accounts and verifying existing ones.
+
+## Implementation Details
+
+- **Data Retrieval**: Accounts and boards are fetched from DynamoDB and cached on disk.
+- **Verification**: The app verifies the account by querying DynamoDB.
+- **Account Management**: Users can manage multiple accounts in the application.
+
+## Error Handling
+
+- **DynamoDB Errors**: All DynamoDB operations are wrapped in try/catch blocks, with detailed error logging and fallback to mock data if needed.
+- **Cache Errors**: Disk I/O errors are handled gracefully, with fallback to direct DynamoDB queries if the cache is unavailable.
+- **Monitoring**: The app exposes cache statistics and health metrics in the UI for transparency and debugging.
+
+# Pinterest Board Manager
+
+This section provides detailed information about the Pinterest board manager feature of the application.
+
+## Features
+
+- **Board Management**: Users can view and manage their Pinterest boards.
+- **Pin Management**: Users can view and manage their pins on boards.
+- **Search and Filter**: Users can search and filter boards and pins.
+- **Responsive Layout**: Pins are displayed in a responsive, masonry-style layout.
+
+## Usage
+
+1. **Accessing the Pinterest Boards Page**:
+   - Navigate to the Pinterest Boards section in the application.
+   - This section allows users to view and manage their Pinterest boards.
+
+2. **Viewing Boards**:
+   - Users can click on a board to view pins in a masonry layout.
+   - The layout is designed to be responsive and Pinterest-like.
+
+3. **Managing Pins**:
+   - Users can manage pins on a board by clicking on the pin and using the provided options.
+   - This includes actions like editing, deleting, or adding new pins.
+
+4. **Searching and Filtering**:
+   - Users can search for specific boards or pins using the search bar.
+   - Filters can be applied to narrow down the results.
+
+## Implementation Details
+
+- **Data Retrieval**: Pins are fetched from DynamoDB and cached on disk.
+- **Layout**: Pins are displayed in a masonry layout for a Pinterest-like experience.
+- **Search and Filter**: Pins are searchable and filterable based on various criteria.
+
+## Error Handling
+
+- **DynamoDB Errors**: All DynamoDB operations are wrapped in try/catch blocks, with detailed error logging and fallback to mock data if needed.
+- **Cache Errors**: Disk I/O errors are handled gracefully, with fallback to direct DynamoDB queries if the cache is unavailable.
+- **Monitoring**: The app exposes cache statistics and health metrics in the UI for transparency and debugging.
+
+## Pinterest Account Management
+
+This section provides detailed information about the Pinterest account management feature of the application.
+
+## Features
+
+- **Account Verification**: Users can verify their Pinterest account.
+- **Account Management**: Users can manage multiple Pinterest accounts.
+
+## Usage
+
+1. **Adding a Pinterest Account**:
+   - Navigate to the Pinterest Accounts section in the application.
+   - Enter a Pinterest username and click "Verify & Add".
+   - The app will verify the account by querying DynamoDB and load all boards/pins if found.
+
+2. **Managing Multiple Accounts**:
+   - Users can manage multiple Pinterest accounts in the application.
+   - This includes adding new accounts and verifying existing ones.
+
+## Implementation Details
+
+- **Data Retrieval**: Accounts and boards are fetched from DynamoDB and cached on disk.
+- **Verification**: The app verifies the account by querying DynamoDB.
+- **Account Management**: Users can manage multiple accounts in the application.
+
+## Error Handling
+
+- **DynamoDB Errors**: All DynamoDB operations are wrapped in try/catch blocks, with detailed error logging and fallback to mock data if needed.
+- **Cache Errors**: Disk I/O errors are handled gracefully, with fallback to direct DynamoDB queries if the cache is unavailable.
+- **Monitoring**: The app exposes cache statistics and health metrics in the UI for transparency and debugging.
+
+# Pinterest Board Manager
+
+This section provides detailed information about the Pinterest board manager feature of the application.
+
+## Features
+
+- **Board Management**: Users can view and manage their Pinterest boards.
+- **Pin Management**: Users can view and manage their pins on boards.
+- **Search and Filter**: Users can search and filter boards and pins.
+- **Responsive Layout**: Pins are displayed in a responsive, masonry-style layout.
+
+## Usage
+
+1. **Accessing the Pinterest Boards Page**:
+   - Navigate to the Pinterest Boards section in the application.
+   - This section allows users to view and manage their Pinterest boards.
+
+2. **Viewing Boards**:
+   - Users can click on a board to view pins in a masonry layout.
+   - The layout is designed to be responsive and Pinterest-like.
+
+3. **Managing Pins**:
+   - Users can manage pins on a board by clicking on the pin and using the provided options.
+   - This includes actions like editing, deleting, or adding new pins.
+
+4. **Searching and Filtering**:
+   - Users can search for specific boards or pins using the search bar.
+   - Filters can be applied to narrow down the results.
+
+## Implementation Details
+
+- **Data Retrieval**: Pins are fetched from DynamoDB and cached on disk.
+- **Layout**: Pins are displayed in a masonry layout for a Pinterest-like experience.
+- **Search and Filter**: Pins are searchable and filterable based on various criteria.
+
+## Error Handling
+
+- **DynamoDB Errors**: All DynamoDB operations are wrapped in try/catch blocks, with detailed error logging and fallback to mock data if needed.
+- **Cache Errors**: Disk I/O errors are handled gracefully, with fallback to direct DynamoDB queries if the cache is unavailable.
+- **Monitoring**: The app exposes cache statistics and health metrics in the UI for transparency and debugging.
+
+## Pinterest Account Management
+
+This section provides detailed information about the Pinterest account management feature of the application.
+
+## Features
+
+- **Account Verification**: Users can verify their Pinterest account.
+- **Account Management**: Users can manage multiple Pinterest accounts.
+
+## Usage
+
+1. **Adding a Pinterest Account**:
+   - Navigate to the Pinterest Accounts section in the application.
+   - Enter a Pinterest username and click "Verify & Add".
+   - The app will verify the account by querying DynamoDB and load all boards/pins if found.
+
+2. **Managing Multiple Accounts**:
+   - Users can manage multiple Pinterest accounts in the application.
+   - This includes adding new accounts and verifying existing ones.
+
+## Implementation Details
+
+- **Data Retrieval**: Accounts and boards are fetched from DynamoDB and cached on disk.
+- **Verification**: The app verifies the account by querying DynamoDB.
+- **Account Management**: Users can manage multiple accounts in the application.
+
+## Error Handling
+
+- **DynamoDB Errors**: All DynamoDB operations are wrapped in try/catch blocks, with detailed error logging and fallback to mock data if needed.
+- **Cache Errors**: Disk I/O errors are handled gracefully, with fallback to direct DynamoDB queries if the cache is unavailable.
+- **Monitoring**: The app exposes cache statistics and health metrics in the UI for transparency and debugging.
+
+# Pinterest Board Manager
+
+This section provides detailed information about the Pinterest board manager feature of the application.
+
+## Features
+
+- **Board Management**: Users can view and manage their Pinterest boards.
+- **Pin Management**: Users can view and manage their pins on boards.
+- **Search and Filter**: Users can search and filter boards and pins.
+- **Responsive Layout**: Pins are displayed in a responsive, masonry-style layout.
+
+## Usage
+
+1. **Accessing the Pinterest Boards Page**:
+   - Navigate to the Pinterest Boards section in the application.
+   - This section allows users to view and manage their Pinterest boards.
+
+2. **Viewing Boards**:
+   - Users can click on a board to view pins in a masonry layout.
+   - The layout is designed to be responsive and Pinterest-like.
+
+3. **Managing Pins**:
+   - Users can manage pins on a board by clicking on the pin and using the provided options.
+   - This includes actions like editing, deleting, or adding new pins.
+
+4. **Searching and Filtering**:
+   - Users can search for specific boards or pins using the search bar.
+   - Filters can be applied to narrow down the results.
+
+## Implementation Details
+
+- **Data Retrieval**: Pins are fetched from DynamoDB and cached on disk.
+- **Layout**: Pins are displayed in a masonry layout for a Pinterest-like experience.
+- **Search and Filter**: Pins are searchable and filterable based on various criteria.
+
+## Error Handling
+
+- **DynamoDB Errors**: All DynamoDB operations are wrapped in try/catch blocks, with detailed error logging and fallback to mock data if needed.
+- **Cache Errors**: Disk I/O errors are handled gracefully, with fallback to direct DynamoDB queries if the cache is unavailable.
+- **Monitoring**: The app exposes cache statistics and health metrics in the UI for transparency and debugging.
+
+## Pinterest Account Management
+
+This section provides detailed information about the Pinterest account management feature of the application.
+
+## Features
+
+- **Account Verification**: Users can verify their Pinterest account.
+- **Account Management**: Users can manage multiple Pinterest accounts.
+
+## Usage
+
+1. **Adding a Pinterest Account**:
+   - Navigate to the Pinterest Accounts section in the application.
+   - Enter a Pinterest username and click "Verify & Add".
+   - The app will verify the account by querying DynamoDB and load all boards/pins if found.
+
+2. **Managing Multiple Accounts**:
+   - Users can manage multiple Pinterest accounts in the application.
+   - This includes adding new accounts and verifying existing ones.
+
+## Implementation Details
+
+- **Data Retrieval**: Accounts and boards are fetched from DynamoDB and cached on disk.
+- **Verification**: The app verifies the account by querying DynamoDB.
+- **Account Management**: Users can manage multiple accounts in the application.
+
+## Error Handling
+
+- **DynamoDB Errors**: All DynamoDB operations are wrapped in try/catch blocks, with detailed error logging and fallback to mock data if needed.
+- **Cache Errors**: Disk I/O errors are handled gracefully, with fallback to direct DynamoDB queries if the cache is unavailable.
+- **Monitoring**: The app exposes cache statistics and health metrics in the UI for transparency and debugging.
+
+# Pinterest Board Manager
+
+This section provides detailed information about the Pinterest board manager feature of the application.
+
+## Features
+
+- **Board Management**: Users can view and manage their Pinterest boards.
+- **Pin Management**: Users can view and manage their pins on boards.
+- **Search and Filter**: Users can search and filter boards and pins.
+- **Responsive Layout**: Pins are displayed in a responsive, masonry-style layout.
+
+## Usage
+
+1. **Accessing the Pinterest Boards Page**:
+   - Navigate to the Pinterest Boards section in the application.
+   - This section allows users to view and manage their Pinterest boards.
+
+2. **Viewing Boards**:
+   - Users can click on a board to view pins in a masonry layout.
+   - The layout is designed to be responsive and Pinterest-like.
+
+3. **Managing Pins**:
+   - Users can manage pins on a board by clicking on the pin and using the provided options.
+   - This includes actions like editing, deleting, or adding new pins.
+
+4. **Searching and Filtering**:
+   - Users can search for specific boards or pins using the search bar.
+   - Filters can be applied to narrow down the results.
+
+## Implementation Details
+
+- **Data Retrieval**: Pins are fetched from DynamoDB and cached on disk.
+- **Layout**: Pins are displayed in a masonry layout for a Pinterest-like experience.
+- **Search and Filter**: Pins are searchable and filterable based on various criteria.
+
+## Error Handling
+
+- **DynamoDB Errors**: All DynamoDB operations are wrapped in try/catch blocks, with detailed error logging and fallback to mock data if needed.
+- **Cache Errors**: Disk I/O errors are handled gracefully, with fallback to direct DynamoDB queries if the cache is unavailable.
+- **Monitoring**: The app exposes cache statistics and health metrics in the UI for transparency and debugging.
+
+## Pinterest Account Management
+
+This section provides detailed information about the Pinterest account management feature of the application.
+
+## Features
+
+- **Account Verification**: Users can verify their Pinterest account.
+- **Account Management**: Users can manage multiple Pinterest accounts.
+
+## Usage
+
+1. **Adding a Pinterest Account**:
+   - Navigate to the Pinterest Accounts section in the application.
+   - Enter a Pinterest username and click "Verify & Add".
+   - The app will verify the account by querying DynamoDB and load all boards/pins if found.
+
+2. **Managing Multiple Accounts**:
+   - Users can manage multiple Pinterest accounts in the application.
+   - This includes adding new accounts and verifying existing ones.
+
+## Implementation Details
+
+- **Data Retrieval**: Accounts and boards are fetched from DynamoDB and cached on disk.
+- **Verification**: The app verifies the account by querying DynamoDB.
+- **Account Management**: Users can manage multiple accounts in the application.
+
+## Error Handling
+
+- **DynamoDB Errors**: All DynamoDB operations are wrapped in try/catch blocks, with detailed error logging and fallback to mock data if needed.
+- **Cache Errors**: Disk I/O errors are handled gracefully, with fallback to direct DynamoDB queries if the cache is unavailable.
+- **Monitoring**: The app exposes cache statistics and health metrics in the UI for transparency and debugging.
+
+# Pinterest Board Manager
+
+This section provides detailed information about the Pinterest board manager feature of the application.
+
+## Features
+
+- **Board Management**: Users can view and manage their Pinterest boards.
+- **Pin Management**: Users can view and manage their pins on boards.
+- **Search and Filter**: Users can search and filter boards and pins.
+- **Responsive Layout**: Pins are displayed in a responsive, masonry-style layout.
+
+## Usage
+
+1. **Accessing the Pinterest Boards Page**:
+   - Navigate to the Pinterest Boards section in the application.
+   - This section allows users to view and manage their Pinterest boards.
+
+2. **Viewing Boards**:
+   - Users can click on a board to view pins in a masonry layout.
+   - The layout is designed to be responsive and Pinterest-like.
+
+3. **Managing Pins**:
+   - Users can manage pins on a board by clicking on the pin and using the provided options.
+   - This includes actions like editing, deleting, or adding new pins.
+
+4. **Searching and Filtering**:
+   - Users can search for specific boards or pins using the search bar.
+   - Filters can be applied to narrow down the results.
+
+## Implementation Details
+
+- **Data Retrieval**: Pins are fetched from DynamoDB and cached on disk.
+- **Layout**: Pins are displayed in a masonry layout for a Pinterest-like experience.
+- **Search and Filter**: Pins are searchable and filterable based on various criteria.
+
+## Error Handling
+
+- **DynamoDB Errors**: All DynamoDB operations are wrapped in try/catch blocks, with detailed error logging and fallback to mock data if needed.
+- **Cache Errors**: Disk I/O errors are handled gracefully, with fallback to direct DynamoDB queries if the cache is unavailable.
+- **Monitoring**: The app exposes cache statistics and health metrics in the UI for transparency and debugging.
+
+## Pinterest Account Management
+
+This section provides detailed information about the Pinterest account management feature of the application.
+
+## Features
+
+- **Account Verification**: Users can verify their Pinterest account.
+- **Account Management**: Users can manage multiple Pinterest accounts.
+
+## Usage
+
+1. **Adding a Pinterest Account**:
+   - Navigate to the Pinterest Accounts section in the application.
+   - Enter a Pinterest username and click "Verify & Add".
+   - The app will verify the account by querying DynamoDB and load all boards/pins if found.
+
+2. **Managing Multiple Accounts**:
+   - Users can manage multiple Pinterest accounts in the application.
+   - This includes adding new accounts and verifying existing ones.
+
+## Implementation Details
+
+- **Data Retrieval**: Accounts and boards are fetched from DynamoDB and cached on disk.
+- **Verification**: The app verifies the account by querying DynamoDB.
+- **Account Management**: Users can manage multiple accounts in the application.
+
+## Error Handling
+
+- **DynamoDB Errors**: All DynamoDB operations are wrapped in try/catch blocks, with detailed error logging and fallback to mock data if needed.
+- **Cache Errors**: Disk I/O errors are handled gracefully, with fallback to direct DynamoDB queries if the cache is unavailable.
+- **Monitoring**: The app exposes cache statistics and health metrics in the UI for transparency and debugging.
+
+# Pinterest Board Manager
+
+This section provides detailed information about the Pinterest board manager feature of the application.
+
+## Features
+
+- **Board Management**: Users can view and manage their Pinterest boards.
+- **Pin Management**: Users can view and manage their pins on boards.
+- **Search and Filter**: Users can search and filter boards and pins.
+- **Responsive Layout**: Pins are displayed in a responsive, masonry-style layout.
+
+## Usage
+
+1. **Accessing the Pinterest Boards Page**:
+   - Navigate to the Pinterest Boards section in the application.
+   - This section allows users to view and manage their Pinterest boards.
+
+2. **Viewing Boards**:
+   - Users can click on a board to view pins in a masonry layout.
+   - The layout is designed to be responsive and Pinterest-like.
+
+3. **Managing Pins**:
+   - Users can manage pins on a board by clicking on the pin and using the provided options.
+   - This includes actions like editing, deleting, or adding new pins.
+
+4. **Searching and Filtering**:
+   - Users can search for specific boards or pins using the search bar.
+   - Filters can be applied to narrow down the results.
+
+## Implementation Details
+
+- **Data Retrieval**: Pins are fetched from DynamoDB and cached on disk.
+- **Layout**: Pins are displayed in a masonry layout for a Pinterest-like experience.
+- **Search and Filter**: Pins are searchable and filterable based on various criteria.
+
+## Error Handling
+
+- **DynamoDB Errors**: All DynamoDB operations are wrapped in try/catch blocks, with detailed error logging and fallback to mock data if needed.
+- **Cache Errors**: Disk I/O errors are handled gracefully, with fallback to direct DynamoDB queries if the cache is unavailable.
+- **Monitoring**: The app exposes cache statistics and health metrics in the UI for transparency and debugging.
+
+## Pinterest Account Management
+
+This section provides detailed information about the Pinterest account management feature of the application.
+
+## Features
+
+- **Account Verification**: Users can verify their Pinterest account.
+- **Account Management**: Users can manage multiple Pinterest accounts.
+
+## Usage
+
+1. **Adding a Pinterest Account**:
+   - Navigate to the Pinterest Accounts section in the application.
+   - Enter a Pinterest username and click "Verify & Add".
+   - The app will verify the account by querying DynamoDB and load all boards/pins if found.
+
+2. **Managing Multiple Accounts**:
+   - Users can manage multiple Pinterest accounts in the application.
+   - This includes adding new accounts and verifying existing ones.
+
+## Implementation Details
+
+- **Data Retrieval**: Accounts and boards are fetched from DynamoDB and cached on disk.
+- **Verification**: The app verifies the account by querying DynamoDB.
+- **Account Management**: Users can manage multiple accounts in the application.
+
+## Error Handling
+
+- **DynamoDB Errors**: All DynamoDB operations are wrapped in try/catch blocks, with detailed error logging and fallback to mock data if needed.
+- **Cache Errors**: Disk I/O errors are handled gracefully, with fallback to direct DynamoDB queries if the cache is unavailable.
+- **Monitoring**: The app exposes cache statistics and health metrics in the UI for transparency and debugging.
+
+# Pinterest Board Manager
+
+This section provides detailed information about the Pinterest board manager feature of the application.
+
+## Features
+
+- **Board Management**: Users can view and manage their Pinterest boards.
+- **Pin Management**: Users can view and manage their pins on boards.
+- **Search and Filter**: Users can search and filter boards and pins.
+- **Responsive Layout**: Pins are displayed in a responsive, masonry-style layout.
+
+## Usage
+
+1. **Accessing the Pinterest Boards Page**:
+   - Navigate to the Pinterest Boards section in the application.
+   - This section allows users to view and manage their Pinterest boards.
+
+2. **Viewing Boards**:
+   - Users can click on a board to view pins in a masonry layout.
+   - The layout is designed to be responsive and Pinterest-like.
+
+3. **Managing Pins**:
+   - Users can manage pins on a board by clicking on the pin and using the provided options.
+   - This includes actions like editing, deleting, or adding new pins.
+
+4. **Searching and Filtering**:
+   - Users can search for specific boards or pins using the search bar.
+   - Filters can be applied to narrow down the results.
+
+## Implementation Details
+
+- **Data Retrieval**: Pins are fetched from DynamoDB and cached on disk.
+- **Layout**: Pins are displayed in a masonry layout for a Pinterest-like experience.
+- **Search and Filter**: Pins are searchable and filterable based on various criteria.
+
+## Error Handling
+
+- **DynamoDB Errors**: All DynamoDB operations are wrapped in try/catch blocks, with detailed error logging and fallback to mock data if needed.
+- **Cache Errors**: Disk I/O errors are handled gracefully, with fallback to direct DynamoDB queries if the cache is unavailable.
+- **Monitoring**: The app exposes cache statistics and health metrics in the UI for transparency and debugging.
+
+## Pinterest Account Management
+
+This section provides detailed information about the Pinterest account management feature of the application.
+
+## Features
+
+- **Account Verification**: Users can verify their Pinterest account.
+- **Account Management**: Users can manage multiple Pinterest accounts.
+
+## Usage
+
+1. **Adding a Pinterest Account**:
+   - Navigate to the Pinterest Accounts section in the application.
+   - Enter a Pinterest username and click "Verify & Add".
+   - The app will verify the account by querying DynamoDB and load all boards/pins if found.
+
+2. **Managing Multiple Accounts**:
+   - Users can manage multiple Pinterest accounts in the application.
+   - This includes adding new accounts and verifying existing ones.
+
+## Implementation Details
+
+- **Data Retrieval**: Accounts and boards are fetched from DynamoDB and cached on disk.
+- **Verification**: The app verifies the account by querying DynamoDB.
+- **Account Management**: Users can manage multiple accounts in the application.
+
+## Error Handling
+
+- **DynamoDB Errors**: All DynamoDB operations are wrapped in try/catch blocks, with detailed error logging and fallback to mock data if needed.
+- **Cache Errors**: Disk I/O errors are handled gracefully, with fallback to direct DynamoDB queries if the cache is unavailable.
+- **Monitoring**: The app exposes cache statistics and health metrics in the UI for transparency and debugging.
+
+# Pinterest Board Manager
+
+This section provides detailed information about the Pinterest board manager feature of the application.
+
+## Features
+
+- **Board Management**: Users can view and manage their Pinterest boards.
+- **Pin Management**: Users can view and manage their pins on boards.
+- **Search and Filter**: Users can search and filter boards and pins.
+- **Responsive Layout**: Pins are displayed in a responsive, masonry-style layout.
+
+## Usage
+
+1. **Accessing the Pinterest Boards Page**:
+   - Navigate to the Pinterest Boards section in the application.
+   - This section allows users to view and manage their Pinterest boards.
+
+2. **Viewing Boards**:
+   - Users can click on a board to view pins in a masonry layout.
+   - The layout is designed to be responsive and Pinterest-like.
+
+3. **Managing Pins**:
+   - Users can manage pins on a board by clicking on the pin and using the provided options.
+   - This includes actions like editing, deleting, or adding new pins.
+
+4. **Searching and Filtering**:
+   - Users can search for specific boards or pins using the search bar.
+   - Filters can be applied to narrow down the results.
+
+## Implementation Details
+
+- **Data Retrieval**: Pins are fetched from DynamoDB and cached on disk.
+- **Layout**: Pins are displayed in a masonry layout for a Pinterest-like experience.
+- **Search and Filter**: Pins are searchable and filterable based on various criteria.
+
+## Error Handling
+
+- **DynamoDB Errors**: All DynamoDB operations are wrapped in try/catch blocks, with detailed error logging and fallback to mock data if needed.
+- **Cache Errors**: Disk I/O errors are handled gracefully, with fallback to direct DynamoDB queries if the cache is unavailable.
+- **Monitoring**: The app exposes cache statistics and health metrics in the UI for transparency and debugging.
+
+## Pinterest Account Management
+
+This section provides detailed information about the Pinterest account management feature of the application.
+
+## Features
+
+- **Account Verification**: Users can verify their Pinterest account.
+- **Account Management**: Users can manage multiple Pinterest accounts.
+
+## Usage
+
+1. **Adding a Pinterest Account**:
+   - Navigate to the Pinterest Accounts section in the application.
+   - Enter a Pinterest username and click "Verify & Add".
+   - The app will verify the account by querying DynamoDB and load all boards/pins if found.
+
+2. **Managing Multiple Accounts**:
+   - Users can manage multiple Pinterest accounts in the application.
+   - This includes adding new accounts and verifying existing ones.
+
+## Implementation Details
+
+- **Data Retrieval**: Accounts and boards are fetched from DynamoDB and cached on disk.
+- **Verification**: The app verifies the account by querying DynamoDB.
+- **Account Management**: Users can manage multiple accounts in the application.
+
+## Error Handling
+
+- **DynamoDB Errors**: All DynamoDB operations are wrapped in try/catch blocks, with detailed error logging and fallback to mock data if needed.
+- **Cache Errors**: Disk I/O errors are handled gracefully, with fallback to direct DynamoDB queries if the cache is unavailable.
+- **Monitoring**: The app exposes cache statistics and health metrics in the UI for transparency and debugging.
+
+# Pinterest Board Manager
+
+This section provides detailed information about the Pinterest board manager feature of the application.
+
+## Features
+
+- **Board Management**: Users can view and manage their Pinterest boards.
+- **Pin Management**: Users can view and manage their pins on boards.
+- **Search and Filter**: Users can search and filter boards and pins.
+- **Responsive Layout**: Pins are displayed in a responsive, masonry-style layout.
+
+## Usage
+
+1. **Accessing the Pinterest Boards Page**:
+   - Navigate to the Pinterest Boards section in the application.
+   - This section allows users to view and manage their Pinterest boards.
+
+2. **Viewing Boards**:
+   - Users can click on a board to view pins in a masonry layout.
+   - The layout is designed to be responsive and Pinterest-like.
+
+3. **Managing Pins**:
+   - Users can manage pins on a board by clicking on the pin and using the provided options.
+   - This includes actions like editing, deleting, or adding new pins.
+
+4. **Searching and Filtering**:
+   - Users can search for specific boards or pins using the search bar.
+   - Filters can be applied to narrow down the results.
+
+## Implementation Details
+
+- **Data Retrieval**: Pins are fetched from DynamoDB and cached on disk.
+- **Layout**: Pins are displayed in a masonry layout for a Pinterest-like experience.
+- **Search and Filter**: Pins are searchable and filterable based on various criteria.
+
+## Error Handling
+
+- **DynamoDB Errors**: All DynamoDB operations are wrapped in try/catch blocks, with detailed error logging and fallback to mock data if needed.
+- **Cache Errors**: Disk I/O errors are handled gracefully, with fallback to direct DynamoDB queries if the cache is unavailable.
+- **Monitoring**: The app exposes cache statistics and health metrics in the UI for transparency and debugging.
+
+## Pinterest Account Management
+
+This section provides detailed information about the Pinterest account management feature of the application.
+
+## Features
+
+- **Account Verification**: Users can verify their Pinterest account.
+- **Account Management**: Users can manage multiple Pinterest accounts.
+
+## Usage
+
+1. **Adding a Pinterest Account**:
+   - Navigate to the Pinterest Accounts section in the application.
+   - Enter a Pinterest username and click "Verify & Add".
+   - The app will verify the account by querying DynamoDB and load all boards/pins if found.
+
+2. **Managing Multiple Accounts**:
+   - Users can manage multiple Pinterest accounts in the application.
+   - This includes adding new accounts and verifying existing ones.
+
+## Implementation Details
+
+- **Data Retrieval**: Accounts and boards are fetched from DynamoDB and cached on disk.
+- **Verification**: The app verifies the account by querying DynamoDB.
+- **Account Management**: Users can manage multiple accounts in the application.
+
+## Error Handling
+
+- **DynamoDB Errors**: All DynamoDB operations are wrapped in try/catch blocks, with detailed error logging and fallback to mock data if needed.
+- **Cache Errors**: Disk I/O errors are handled gracefully, with fallback to direct DynamoDB queries if the cache is unavailable.
+- **Monitoring**: The app exposes cache statistics and health metrics in the UI for transparency and debugging.
+
+# Pinterest Board Manager
+
+This section provides detailed information about the Pinterest board manager feature of the application.
+
+## Features
+
+- **Board Management**: Users can view and manage their Pinterest boards.
+- **Pin Management**: Users can view and manage their pins on boards.
+- **Search and Filter**: Users can search and filter boards and pins.
+- **Responsive Layout**: Pins are displayed in a responsive, masonry-style layout.
+
+## Usage
+
+1. **Accessing the Pinterest Boards Page**:
+   - Navigate to the Pinterest Boards section in the application.
+   - This section allows users to view and manage their Pinterest boards.
+
+2. **Viewing Boards**:
+   - Users can click on a board to view pins in a masonry layout.
+   - The layout is designed to be responsive and Pinterest-like.
+
+3. **Managing Pins**:
+   - Users can manage pins on a board by clicking on the pin and using the provided options.
+   - This includes actions like editing, deleting, or adding new pins.
+
+4. **Searching and Filtering**:
+   - Users can search for specific boards or pins using the search bar.
+   - Filters can be applied to narrow down the results.
+
+## Implementation Details
+
+- **Data Retrieval**: Pins are fetched from DynamoDB and cached on disk.
+- **Layout**: Pins are displayed in a masonry layout for a Pinterest-like experience.
+- **Search and Filter**: Pins are searchable and filterable based on various criteria.
+
+## Error Handling
+
+- **DynamoDB Errors**: All DynamoDB operations are wrapped in try/catch blocks, with detailed error logging and fallback to mock data if needed.
+- **Cache Errors**: Disk I/O errors are handled gracefully, with fallback to direct DynamoDB queries if the cache is unavailable.
+- **Monitoring**: The app exposes cache statistics and health metrics in the UI for transparency and debugging.
+
+## Pinterest Account Management
+
+This section provides detailed information about the Pinterest account management feature of the application.
+
+## Features
+
+- **Account Verification**: Users can verify their Pinterest account.
+- **Account Management**: Users can manage multiple Pinterest accounts.
+
+## Usage
+
+1. **Adding a Pinterest Account**:
+   - Navigate to the Pinterest Accounts section in the application.
+   - Enter a Pinterest username and click "Verify & Add".
+   - The app will verify the account by querying DynamoDB and load all boards/pins if found.
+
+2. **Managing Multiple Accounts**:
+   - Users can manage multiple Pinterest accounts in the application.
+   - This includes adding new accounts and verifying existing ones.
+
+## Implementation Details
+
+- **Data Retrieval**: Accounts and boards are fetched from DynamoDB and cached on disk.
+- **Verification**: The app verifies the account by querying DynamoDB.
+- **Account Management**: Users can manage multiple accounts in the application.
+
+## Error Handling
+
+- **DynamoDB Errors**: All DynamoDB operations are wrapped in try/catch blocks, with detailed error logging and fallback to mock data if needed.
+- **Cache Errors**: Disk I/O errors are handled gracefully, with fallback to direct DynamoDB queries if the cache is unavailable.
+- **Monitoring**: The app exposes cache statistics and health metrics in the UI for transparency and debugging.
+
+# Pinterest Board Manager
+
+This section provides detailed information about the Pinterest board manager feature of the application.
+
+## Features
+
+- **Board Management**: Users can view and manage their Pinterest boards.
+- **Pin Management**: Users can view and manage their pins on boards.
+- **Search and Filter**: Users can search and filter boards and pins.
+- **Responsive Layout**: Pins are displayed in a responsive, masonry-style layout.
+
+## Usage
+
+1. **Accessing the Pinterest Boards Page**:
+   - Navigate to the Pinterest Boards section in the application.
+   - This section allows users to view and manage their Pinterest boards.
+
+2. **Viewing Boards**:
+   - Users can click on a board to view pins in a masonry layout.
+   - The layout is designed to be responsive and Pinterest-like.
+
+3. **Managing Pins**:
+   - Users can manage pins on a board by clicking on the pin and using the provided options.
+   - This includes actions like editing, deleting, or adding new pins.
+
+4. **Searching and Filtering**:
+   - Users can search for specific boards or pins using the search bar.
+   - Filters can be applied to narrow down the results.
+
+## Implementation Details
+
+- **Data Retrieval**: Pins are fetched from DynamoDB and cached on disk.
+- **Layout**: Pins are displayed in a masonry layout for a Pinterest-like experience.
+- **Search and Filter**: Pins are searchable and filterable based on various criteria.
+
+## Error Handling
+
+- **DynamoDB Errors**: All DynamoDB operations are wrapped in try/catch blocks, with detailed error logging and fallback to mock data if needed.
+- **Cache Errors**: Disk I/O errors are handled gracefully, with fallback to direct DynamoDB queries if the cache is unavailable.
+- **Monitoring**: The app exposes cache statistics and health metrics in the UI for transparency and debugging.
+
+## Pinterest Account Management
+
+This section provides detailed information about the Pinterest account management feature of the application.
+
+## Features
+
+- **Account Verification**: Users can verify their Pinterest account.
+- **Account Management**: Users can manage multiple Pinterest accounts.
+
+## Usage
+
+1. **Adding a Pinterest Account**:
+   - Navigate to the Pinterest Accounts section in the application.
+   - Enter a Pinterest username and click "Verify & Add".
+   - The app will verify the account by querying DynamoDB and load all boards/pins if found.
+
+2. **Managing Multiple Accounts**:
+   - Users can manage multiple Pinterest accounts in the application.
+   - This includes adding new accounts and verifying existing ones.
+
+## Implementation Details
+
+- **Data Retrieval**: Accounts and boards are fetched from DynamoDB and cached on disk.
+- **Verification**: The app verifies the account by querying DynamoDB.
+- **Account Management**: Users can manage multiple accounts in the application.
+
+## Error Handling
+
+- **DynamoDB Errors**: All DynamoDB operations are wrapped in try/catch blocks, with detailed error logging and fallback to mock data if needed.
+- **Cache Errors**: Disk I/O errors are handled gracefully, with fallback to direct DynamoDB queries if the cache is unavailable.
+- **Monitoring**: The app exposes cache statistics and health metrics in the UI for transparency and debugging.
+
+# Pinterest Board Manager
+
+This section provides detailed information about the Pinterest board manager feature of the application.
+
+## Features
+
+- **Board Management**: Users can view and manage their Pinterest boards.
+- **Pin Management**: Users can view and manage their pins on boards.
+- **Search and Filter**: Users can search and filter boards and pins.
+- **Responsive Layout**: Pins are displayed in a responsive, masonry-style layout.
+
+## Usage
+
+1. **Accessing the Pinterest Boards Page**:
+   - Navigate to the Pinterest Boards section in the application.
+   - This section allows users to view and manage their Pinterest boards.
+
+2. **Viewing Boards**:
+   - Users can click on a board to view pins in a masonry layout.
+   - The layout is designed to be responsive and Pinterest-like.
+
+3. **Managing Pins**:
+   - Users can manage pins on a board by clicking on the pin and using the provided options.
+   - This includes actions like editing, deleting, or adding new pins.
+
+4. **Searching and Filtering**:
+   - Users can search for specific boards or pins using the search bar.
+   - Filters can be applied to narrow down the results.
+
+## Implementation Details
+
+- **Data Retrieval**: Pins are fetched from DynamoDB and cached on disk.
+- **Layout**: Pins are displayed in a masonry layout for a Pinterest-like experience.
+- **Search and Filter**: Pins are searchable and filterable based on various criteria.
+
+## Error Handling
+
+- **DynamoDB Errors**: All DynamoDB operations are wrapped in try/catch blocks, with detailed error logging and fallback to mock data if needed.
+- **Cache Errors**: Disk I/O errors are handled gracefully, with fallback to direct DynamoDB queries if the cache is unavailable.
+- **Monitoring**: The app exposes cache statistics and health metrics in the UI for transparency and debugging.
+
+## Pinterest Account Management
+
+This section provides detailed information about the Pinterest account management feature of the application.
+
+## Features
+
+- **Account Verification**: Users can verify their Pinterest account.
+- **Account Management**: Users can manage multiple Pinterest accounts.
+
+## Usage
+
+1. **Adding a Pinterest Account**:
+   - Navigate to the Pinterest Accounts section in the application.
+   - Enter a Pinterest username and click "Verify & Add".
+   - The app will verify the account by querying DynamoDB and load all boards/pins if found.
+
+2. **Managing Multiple Accounts**:
+   - Users can manage multiple Pinterest accounts in the application.
+   - This includes adding new accounts and verifying existing ones.
+
+## Implementation Details
+
+- **Data Retrieval**: Accounts and boards are fetched from DynamoDB and cached on disk.
+- **Verification**: The app verifies the account by querying DynamoDB.
+- **Account Management**: Users can manage multiple accounts in the application.
+
+## Error Handling
+
+- **DynamoDB Errors**: All DynamoDB operations are wrapped in try/catch blocks, with detailed error logging and fallback to mock data if needed.
+- **Cache Errors**: Disk I/O errors are handled gracefully, with fallback to direct DynamoDB queries if the cache is unavailable.
+- **Monitoring**: The app exposes cache statistics and health metrics in the UI for transparency and debugging.
+
+# Pinterest Board Manager
+
+This section provides detailed information about the Pinterest board manager feature of the application.
+
+## Features
+
+- **Board Management**: Users can view and manage their Pinterest boards.
+- **Pin Management**: Users can view and manage their pins on boards.
+- **Search and Filter**: Users can search and filter boards and pins.
+- **Responsive Layout**: Pins are displayed in a responsive, masonry-style layout.
+
+## Usage
+
+1. **Accessing the Pinterest Boards Page**:
+   - Navigate to the Pinterest Boards section in the application.
+   - This section allows users to view and manage their Pinterest boards.
+
+2. **Viewing Boards**:
+   - Users can click on a board to view pins in a masonry layout.
+   - The layout is designed to be responsive and Pinterest-like.
+
+3. **Managing Pins**:
+   - Users can manage pins on a board by clicking on the pin and using the provided options.
+   - This includes actions like editing, deleting, or adding new pins.
+
+4. **Searching and Filtering**:
+   - Users can search for specific boards or pins using the search bar.
+   - Filters can be applied to narrow down the results.
+
+## Implementation Details
+
+- **Data Retrieval**: Pins are fetched from DynamoDB and cached on disk.
+- **Layout**: Pins are displayed in a masonry layout for a Pinterest-like experience.
+- **Search and Filter**: Pins are searchable and filterable based on various criteria.
+
+## Error Handling
+
+- **DynamoDB Errors**: All DynamoDB operations are wrapped in try/catch blocks, with detailed error logging and fallback to mock data if needed.
+- **Cache Errors**: Disk I/O errors are handled gracefully, with fallback to direct DynamoDB queries if the cache is unavailable.
+- **Monitoring**: The app exposes cache statistics and health metrics in the UI for transparency and debugging.
+
+## Pinterest Account Management
+
+This section provides detailed information about the Pinterest account management feature of the application.
+
+## Features
+
+- **Account Verification**: Users can verify their Pinterest account.
+- **Account Management**: Users can manage multiple Pinterest accounts.
+
+## Usage
+
+1. **Adding a Pinterest Account**:
+   - Navigate to the Pinterest Accounts section in the application.
+   - Enter a Pinterest username and click "Verify & Add".
+   - The app will verify the account by querying DynamoDB and load all boards/pins if found.
+
+2. **Managing Multiple Accounts**:
+   - Users can manage multiple Pinterest accounts in the application.
+   - This includes adding new accounts and verifying existing ones.
+
+## Implementation Details
+
+- **Data Retrieval**: Accounts and boards are fetched from DynamoDB and cached on disk.
+- **Verification**: The app verifies the account by querying DynamoDB.
+- **Account Management**: Users can manage multiple accounts in the application.
+
+## Error Handling
+
+- **DynamoDB Errors**: All DynamoDB operations are wrapped in try/catch blocks, with detailed error logging and fallback to mock data if needed.
+- **Cache Errors**: Disk I/O errors are handled gracefully, with fallback to direct DynamoDB queries if the cache is unavailable.
+- **Monitoring**: The app exposes cache statistics and health metrics in the UI for transparency and debugging.
+
+# Pinterest Board Manager
+
+This section provides detailed information about the Pinterest board manager feature of the application.
+
+## Features
+
+- **Board Management**: Users can view and manage their Pinterest boards.
+- **Pin Management**: Users can view and manage their pins on boards.
+- **Search and Filter**: Users can search and filter boards and pins.
+- **Responsive Layout**: Pins are displayed in a responsive, masonry-style layout.
+
+## Usage
+
+1. **Accessing the Pinterest Boards Page**:
+   - Navigate to the Pinterest Boards section in the application.
+   - This section allows users to view and manage their Pinterest boards.
+
+2. **Viewing Boards**:
+   - Users can click on a board to view pins in a masonry layout.
+   - The layout is designed to be responsive and Pinterest-like.
+
+3. **Managing Pins**:
+   - Users can manage pins on a board by clicking on the pin and using the provided options.
+   - This includes actions like editing, deleting, or adding new pins.
+
+4. **Searching and Filtering**:
+   - Users can search for specific boards or pins using the search bar.
+   - Filters can be applied to narrow down the results.
+
+## Implementation Details
+
+- **Data Retrieval**: Pins are fetched from DynamoDB and cached on disk.
+- **Layout**: Pins are displayed in a masonry layout for a Pinterest-like experience.
+- **Search and Filter**: Pins are searchable and filterable based on various criteria.
+
+## Error Handling
+
+- **DynamoDB Errors**: All DynamoDB operations are wrapped in try/catch blocks, with detailed error logging and fallback to mock data if needed.
+- **Cache Errors**: Disk I/O errors are handled gracefully, with fallback to direct DynamoDB queries if the cache is unavailable.
+- **Monitoring**: The app exposes cache statistics and health metrics in the UI for transparency and debugging.
+
+## Pinterest Account Management
+
+This section provides detailed information about the Pinterest account management feature of the application.
+
+## Features
+
+- **Account Verification**: Users can verify their Pinterest account.
+- **Account Management**: Users can manage multiple Pinterest accounts.
+
+## Usage
+
+1. **Adding a Pinterest Account**:
+   - Navigate to the Pinterest Accounts section in the application.
+   - Enter a Pinterest username and click "Verify & Add".
+   - The app will verify the account by querying DynamoDB and load all boards/pins if found.
+
+2. **Managing Multiple Accounts**:
+   - Users can manage multiple Pinterest accounts in the application.
+   - This includes adding new accounts and verifying existing ones.
+
+## Implementation Details
+
+- **Data Retrieval**: Accounts and boards are fetched from DynamoDB and cached on disk.
+- **Verification**: The app verifies the account by querying DynamoDB.
+- **Account Management**: Users can manage multiple accounts in the application.
+
+## Error Handling
+
+- **DynamoDB Errors**: All DynamoDB operations are wrapped in try/catch blocks, with detailed error logging and fallback to mock data if needed.
+- **Cache Errors**: Disk I/O errors are handled gracefully, with fallback to direct DynamoDB queries if the cache is unavailable.
+- **Monitoring**: The app exposes cache statistics and health metrics in the UI for transparency and debugging.
+
+# Pinterest Board Manager
+
+This section provides detailed information about the Pinterest board manager feature of the application.
+
+## Features
+
+- **Board Management**: Users can view and manage their Pinterest boards.
+- **Pin Management**: Users can view and manage their pins on boards.
+- **Search and Filter**: Users can search and filter boards and pins.
+- **Responsive Layout**: Pins are displayed in a responsive, masonry-style layout.
+
+## Usage
+
+1. **Accessing the Pinterest Boards Page**:
+   - Navigate to the Pinterest Boards section in the application.
+   - This section allows users to view and manage their Pinterest boards.
+
+2. **Viewing Boards**:
+   - Users can click on a board to view pins in a masonry layout.
+   - The layout is designed to be responsive and Pinterest-like.
+
+3. **Managing Pins**:
+   - Users can manage pins on a board by clicking on the pin and using the provided options.
+   - This includes actions like editing, deleting, or adding new pins.
+
+4. **Searching and Filtering**:
+   - Users can search for specific boards or pins using the search bar.
+   - Filters can be applied to narrow down the results.
+
+## Implementation Details
+
+- **Data Retrieval**: Pins are fetched from DynamoDB and cached on disk.
+- **Layout**: Pins are displayed in a masonry layout for a Pinterest-like experience.
+- **Search and Filter**: Pins are searchable and filterable based on various criteria.
+
+## Error Handling
+
+- **DynamoDB Errors**: All DynamoDB operations are wrapped in try/catch blocks, with detailed error logging and fallback to mock data if needed.
+- **Cache Errors**: Disk I/O errors are handled gracefully, with fallback to direct DynamoDB queries if the cache is unavailable.
+- **Monitoring**: The app exposes cache statistics and health metrics in the UI for transparency and debugging.
+
+## Pinterest Account Management
+
+This section provides detailed information about the Pinterest account management feature of the application.
+
+## Features
+
+- **Account Verification**: Users can verify their Pinterest account.
+- **Account Management**: Users can manage multiple Pinterest accounts.
+
+## Usage
+
+1. **Adding a Pinterest Account**:
+   - Navigate to the Pinterest Accounts section in the application.
+   - Enter a Pinterest username and click "Verify & Add".
+   - The app will verify the account by querying DynamoDB and load all boards/pins if found.
+
+2. **Managing Multiple Accounts**:
+   - Users can manage multiple Pinterest accounts in the application.
+   - This includes adding new accounts and verifying existing ones.
+
+## Implementation Details
+
+- **Data Retrieval**: Accounts and boards are fetched from DynamoDB and cached on disk.
+- **Verification**: The app verifies the account by querying DynamoDB.
+- **Account Management**: Users can manage multiple accounts in the application.
+
+## Error Handling
+
+- **DynamoDB Errors**: All DynamoDB operations are wrapped in try/catch blocks, with detailed error logging and fallback to mock data if needed.
+- **Cache Errors**: Disk I/O errors are handled gracefully, with fallback to direct DynamoDB queries if the cache is unavailable.
+- **Monitoring**: The app exposes cache statistics and health metrics in the UI for transparency and debugging.
+
+# Pinterest Board Manager
+
+This section provides detailed information about the Pinterest board manager feature of the application.
+
+## Features
+
+- **Board Management**: Users can view and manage their Pinterest boards.
+- **Pin Management**: Users can view and manage their pins on boards.
+- **Search and Filter**: Users can search and filter boards and pins.
+- **Responsive Layout**: Pins are displayed in a responsive, masonry-style layout.
+
+## Usage
+
+1. **Accessing the Pinterest Boards Page**:
+   - Navigate to the Pinterest Boards section in the application.
+   - This section allows users to view and manage their Pinterest boards.
+
+2. **Viewing Boards**:
+   - Users can click on a board to view pins in a masonry layout.
+   - The layout is designed to be responsive and Pinterest-like.
+
+3. **Managing Pins**:
+   - Users can manage pins on a board by clicking on the pin and using the provided options.
+   - This includes actions like editing, deleting, or adding new pins.
+
+4. **Searching and Filtering**:
+   - Users can search for specific boards or pins using the search bar.
+   - Filters can be applied to narrow down the results.
+
+## Implementation Details
+
+- **Data Retrieval**: Pins are fetched from DynamoDB and cached on disk.
+- **Layout**: Pins are displayed in a masonry layout for a Pinterest-like experience.
+- **Search and Filter**: Pins are searchable and filterable based on various criteria.
+
+## Error Handling
+
+- **DynamoDB Errors**: All DynamoDB operations are wrapped in try/catch blocks, with detailed error logging and fallback to mock data if needed.
+- **Cache Errors**: Disk I/O errors are handled gracefully, with fallback to direct DynamoDB queries if the cache is unavailable.
+- **Monitoring**: The app exposes cache statistics and health metrics in the UI for transparency and debugging.
+
+## Pinterest Account Management
+
+This section provides detailed information about the Pinterest account management feature of the application.
+
+## Features
+
+- **Account Verification**: Users can verify their Pinterest account.
+- **Account Management**: Users can manage multiple Pinterest accounts.
+
+## Usage
+
+1. **Adding a Pinterest Account**:
+   - Navigate to the Pinterest Accounts section in the application.
+   - Enter a Pinterest username and click "Verify & Add".
+   - The app will verify the account by querying DynamoDB and load all boards/pins if found.
+
+2. **Managing Multiple Accounts**:
+   - Users can manage multiple Pinterest accounts in the application.
+   - This includes adding new accounts and verifying existing ones.
+
+## Implementation Details
+
+- **Data Retrieval**: Accounts and boards are fetched from DynamoDB and cached on disk.
+- **Verification**: The app verifies the account by querying DynamoDB.
+- **Account Management**: Users can manage multiple accounts in the application.
+
+## Error Handling
+
+- **DynamoDB Errors**: All DynamoDB operations are wrapped in try/catch blocks, with detailed error logging and fallback to mock data if needed.
+- **Cache Errors**: Disk I/O errors are handled gracefully, with fallback to direct DynamoDB queries if the cache is unavailable.
+- **Monitoring**: The app exposes cache statistics and health metrics in the UI for transparency and debugging.
+
+# Pinterest Board Manager
+
+This section provides detailed information about the Pinterest board manager feature of the application.
+
+## Features
+
+- **Board Management**: Users can view and manage their Pinterest boards.
+- **Pin Management**: Users can view and manage their pins on boards.
+- **Search and Filter**: Users can search and filter boards and pins.
+- **Responsive Layout**: Pins are displayed in a responsive, masonry-style layout.
+
+## Usage
+
+1. **Accessing the Pinterest Boards Page**:
+   - Navigate to the Pinterest Boards section in the application.
+   - This section allows users to view and manage their Pinterest boards.
+
+2. **Viewing Boards**:
+   - Users can click on a board to view pins in a masonry layout.
+   - The layout is designed to be responsive and Pinterest-like.
+
+3. **Managing Pins**:
+   - Users can manage pins on a board by clicking on the pin and using the provided options.
+   - This includes actions like editing, deleting, or adding new pins.
+
+4. **Searching and Filtering**:
+   - Users can search for specific boards or pins using the search bar.
+   - Filters can be applied to narrow down the results.
+
+## Implementation Details
+
+- **Data Retrieval**: Pins are fetched from DynamoDB and cached on disk.
+- **Layout**: Pins are displayed in a masonry layout for a Pinterest-like experience.
+- **Search and Filter**: Pins are searchable and filterable based on various criteria.
+
+## Error Handling
+
+- **DynamoDB Errors**: All DynamoDB operations are wrapped in try/catch blocks, with detailed error logging and fallback to mock data if needed.
+- **Cache Errors**: Disk I/O errors are handled gracefully, with fallback to direct DynamoDB queries if the cache is unavailable.
+- **Monitoring**: The app exposes cache statistics and health metrics in the UI for transparency and debugging.
+
+## Pinterest Account Management
+
+This section provides detailed information about the Pinterest account management feature of the application.
+
+## Features
+
+- **Account Verification**: Users can verify their Pinterest account.
+- **Account Management**: Users can manage multiple Pinterest accounts.
+
+## Usage
+
+1. **Adding a Pinterest Account**:
+   - Navigate to the Pinterest Accounts section in the application.
+   - Enter a Pinterest username and click "Verify & Add".
+   - The app will verify the account by querying DynamoDB and load all boards/pins if found.
+
+2. **Managing Multiple Accounts**:
+   - Users can manage multiple Pinterest accounts in the application.
+   - This includes adding new accounts and verifying existing ones.
+
+## Implementation Details
+
+- **Data Retrieval**: Accounts and boards are fetched from DynamoDB and cached on disk.
+- **Verification**: The app verifies the account by querying DynamoDB.
+- **Account Management**: Users can manage multiple accounts in the application.
+
+## Error Handling
+
+- **DynamoDB Errors**: All DynamoDB operations are wrapped in try/catch blocks, with detailed error logging and fallback to mock data if needed.
+- **Cache Errors**: Disk I/O errors are handled gracefully, with fallback to direct DynamoDB queries if the cache is unavailable.
+- **Monitoring**: The app exposes cache statistics and health metrics in the UI for transparency and debugging.
+
+# Pinterest Board Manager
+
+This section provides detailed information about the Pinterest board manager feature of the application.
+
+## Features
+
+- **Board Management**: Users can view and manage their Pinterest boards.
+- **Pin Management**: Users can view and manage their pins on boards.
+- **Search and Filter**: Users can search and filter boards and pins.
+- **Responsive Layout**: Pins are displayed in a responsive, masonry-style layout.
+
+## Usage
+
+1. **Accessing the Pinterest Boards Page**:
+   - Navigate to the Pinterest Boards section in the application.
+   - This section allows users to view and manage their Pinterest boards.
+
+2. **Viewing Boards**:
+   - Users can click on a board to view pins in a masonry layout.
+   - The layout is designed to be responsive and Pinterest-like.
+
+3. **Managing Pins**:
+   - Users can manage pins on a board by clicking on the pin and using the provided options.
+   - This includes actions like editing, deleting, or adding new pins.
+
+4. **Searching and Filtering**:
+   - Users can search for specific boards or pins using the search bar.
+   - Filters can be applied to narrow down the results.
+
+## Implementation Details
+
+- **Data Retrieval**: Pins are fetched from DynamoDB and cached on disk.
+- **Layout**: Pins are displayed in a masonry layout for a Pinterest-like experience.
+- **Search and Filter**: Pins are searchable and filterable based on various criteria.
+
+## Error Handling
+
+- **DynamoDB Errors**: All DynamoDB operations are wrapped in try/catch blocks, with detailed error logging and fallback to mock data if needed.
+- **Cache Errors**: Disk I/O errors are handled gracefully, with fallback to direct DynamoDB queries if the cache is unavailable.
+- **Monitoring**: The app exposes cache statistics and health metrics in the UI for transparency and debugging.
+
+## Pinterest Account Management
+
+This section provides detailed information about the Pinterest account management feature of the application.
+
+## Features
+
+- **Account Verification**: Users can verify their Pinterest account.
+- **Account Management**: Users can manage multiple Pinterest accounts.
+
+## Usage
+
+1. **Adding a Pinterest Account**:
+   - Navigate to the Pinterest Accounts section in the application.
+   - Enter a Pinterest username and click "Verify & Add".
+   - The app will verify the account by querying DynamoDB and load all boards/pins if found.
+
+2. **Managing Multiple Accounts**:
+   - Users can manage multiple Pinterest accounts in the application.
+   - This includes adding new accounts and verifying existing ones.
+
+## Implementation Details
+
+- **Data Retrieval**: Accounts and boards are fetched from DynamoDB and cached on disk.
+- **Verification**: The app verifies the account by querying DynamoDB.
+- **Account Management**: Users can manage multiple accounts in the application.
+
+## Error Handling
+
+- **DynamoDB Errors**: All DynamoDB operations are wrapped in try/catch blocks, with detailed error logging and fallback to mock data if needed.
+- **Cache Errors**: Disk I/O errors are handled gracefully, with fallback to direct DynamoDB queries if the cache is unavailable.
+- **Monitoring**: The app exposes cache statistics and health metrics in the UI for transparency and debugging.
+
+# Pinterest Board Manager
+
+This section provides detailed information about the Pinterest board manager feature of the application.
+
+## Features
+
+- **Board Management**: Users can view and manage their Pinterest boards.
+- **Pin Management**: Users can view and manage their pins on boards.
+- **Search and Filter**: Users can search and filter boards and pins.
+- **Responsive Layout**: Pins are displayed in a responsive, masonry-style layout.
+
+## Usage
+
+1. **Accessing the Pinterest Boards Page**:
+   - Navigate to the Pinterest Boards section in the application.
+   - This section allows users to view and manage their Pinterest boards.
+
+2. **Viewing Boards**:
+   - Users can click on a board to view pins in a masonry layout.
+   - The layout is designed to be responsive and Pinterest-like.
+
+3. **Managing Pins**:
+   - Users can manage pins on a board by clicking on the pin and using the provided options.
+   - This includes actions like editing, deleting, or adding new pins.
+
+4. **Searching and Filtering**:
+   - Users can search for specific boards or pins using the search bar.
+   - Filters can be applied to narrow down the results.
+
+## Implementation Details
+
+- **Data Retrieval**: Pins are fetched from DynamoDB and cached on disk.
+- **Layout**: Pins are displayed in a masonry layout for a Pinterest-like experience.
+- **Search and Filter**: Pins are searchable and filterable based on various criteria.
+
+## Error Handling
+
+- **DynamoDB Errors**: All DynamoDB operations are wrapped in try/catch blocks, with detailed error logging and fallback to mock data if needed.
+- **Cache Errors**: Disk I/O errors are handled gracefully, with fallback to direct DynamoDB queries if the cache is unavailable.
+- **Monitoring**: The app exposes cache statistics and health metrics in the UI for transparency and debugging.
+
+## Pinterest Account Management
+
+This section provides detailed information about the Pinterest account management feature of the application.
+
+## Features
+
+- **Account Verification**: Users can verify their Pinterest account.
+- **Account Management**: Users can manage multiple Pinterest accounts.
+
+## Usage
+
+1. **Adding a Pinterest Account**:
+   - Navigate to the Pinterest Accounts section in the application.
+   - Enter a Pinterest username and click "Verify & Add".
+   - The app will verify the account by querying DynamoDB and load all boards/pins if found.
+
+2. **Managing Multiple Accounts**:
+   - Users can manage multiple Pinterest accounts in the application.
+   - This includes adding new accounts and verifying existing ones.
+
+## Implementation Details
+
+- **Data Retrieval**: Accounts and boards are fetched from DynamoDB and cached on disk.
+- **Verification**: The app verifies the account by querying DynamoDB.
+- **Account Management**: Users can manage multiple accounts in the application.
+
+## Error Handling
+
+- **DynamoDB Errors**: All DynamoDB operations are wrapped in try/catch blocks, with detailed error logging and fallback to mock data if needed.
+- **Cache Errors**: Disk I/O errors are handled gracefully, with fallback to direct DynamoDB queries if the cache is unavailable.
+- **Monitoring**: The app exposes cache statistics and health metrics in the UI for transparency and debugging.
+
+# Pinterest Board Manager
+
+This section provides detailed information about the Pinterest board manager feature of the application.
+
+## Features
+
+- **Board Management**: Users can view and manage their Pinterest boards.
+- **Pin Management**: Users can view and manage their pins on boards.
+- **Search and Filter**: Users can search and filter boards and pins.
+- **Responsive Layout**: Pins are displayed in a responsive, masonry-style layout.
+
+## Usage
+
+1. **Accessing the Pinterest Boards Page**:
+   - Navigate to the Pinterest Boards section in the application.
+   - This section allows users to view and manage their Pinterest boards.
+
+2. **Viewing Boards**:
+   - Users can click on a board to view pins in a masonry layout.
+   - The layout is designed to be responsive and Pinterest-like.
+
+3. **Managing Pins**:
+   - Users can manage pins on a board by clicking on the pin and using the provided options.
+   - This includes actions like editing, deleting, or adding new pins.
+
+4. **Searching and Filtering**:
+   - Users can search for specific boards or pins using the search bar.
+   - Filters can be applied to narrow down the results.
+
+## Implementation Details
+
+- **Data Retrieval**: Pins are fetched from DynamoDB and cached on disk.
+- **Layout**: Pins are displayed in a masonry layout for a Pinterest-like experience.
+- **Search and Filter**: Pins are searchable and filterable based on various criteria.
+
+## Error Handling
+
+- **DynamoDB Errors**: All DynamoDB operations are wrapped in try/catch blocks, with detailed error logging and fallback to mock data if needed.
+- **Cache Errors**: Disk I/O errors are handled gracefully, with fallback to direct DynamoDB queries if the cache is unavailable.
+- **Monitoring**: The app exposes cache statistics and health metrics in the UI for transparency and debugging.
+
+## Pinterest Account Management
+
+This section provides detailed information about the Pinterest account management feature of the application.
+
+## Features
+
+- **Account Verification**: Users can verify their Pinterest account.
+- **Account Management**: Users can manage multiple Pinterest accounts.
+
+## Usage
+
+1. **Adding a Pinterest Account**:
+   - Navigate to the Pinterest Accounts section in the application.
+   - Enter a Pinterest username and click "Verify & Add".
+   - The app will verify the account by querying DynamoDB and load all boards/pins if found.
+
+2. **Managing Multiple Accounts**:
+   - Users can manage multiple Pinterest accounts in the application.
+   - This includes adding new accounts and verifying existing ones.
+
+## Implementation Details
+
+- **Data Retrieval**: Accounts and boards are fetched from DynamoDB and cached on disk.
+- **Verification**: The app verifies the account by querying DynamoDB.
+- **Account Management**: Users can manage multiple accounts in the application.
+
+## Error Handling
+
+- **DynamoDB Errors**: All DynamoDB operations are wrapped in try/catch blocks, with detailed error logging and fallback to mock data if needed.
+- **Cache Errors**: Disk I/O errors are handled gracefully, with fallback to direct DynamoDB queries if the cache is unavailable.
+- **Monitoring**: The app exposes cache statistics and health metrics in the UI for transparency and debugging.
+
+# Pinterest Board Manager
+
+This section provides detailed information about the Pinterest board manager feature of the application.
+
+## Features
+
+- **Board Management**: Users can view and manage their Pinterest boards.
+- **Pin Management**: Users can view and manage their pins on boards.
+- **Search and Filter**: Users can search and filter boards and pins.
+- **Responsive Layout**: Pins are displayed in a responsive, masonry-style layout.
+
+## Usage
+
+1. **Accessing the Pinterest Boards Page**:
+   - Navigate to the Pinterest Boards section in the application.
+   - This section allows users to view and manage their Pinterest boards.
+
+2. **Viewing Boards**:
+   - Users can click on a board to view pins in a masonry layout.
+   - The layout is designed to be responsive and Pinterest-like.
+
+3. **Managing Pins**:
+   - Users can manage pins on a board by clicking on the pin and using the provided options.
+   - This includes actions like editing, deleting, or adding new pins.
+
+4. **Searching and Filtering**:
+   - Users can search for specific boards or pins using the search bar.
+   - Filters can be applied to narrow down the results.
+
+## Implementation Details
+
+- **Data Retrieval**: Pins are fetched from DynamoDB and cached on disk.
+- **Layout**: Pins are displayed in a masonry layout for a Pinterest-like experience.
+- **Search and Filter**: Pins are searchable and filterable based on various criteria.
+
+## Error Handling
+
+- **DynamoDB Errors**: All DynamoDB operations are wrapped in try/catch blocks, with detailed error logging and fallback to mock data if needed.
+- **Cache Errors**: Disk I/O errors are handled gracefully, with fallback to direct DynamoDB queries if the cache is unavailable.
+- **Monitoring**: The app exposes cache statistics and health metrics in the UI for transparency and debugging.
+
+## Pinterest Account Management
+
+This section provides detailed information about the Pinterest account management feature of the application.
+
+## Features
+
+- **Account Verification**: Users can verify their Pinterest account.
+- **Account Management**: Users can manage multiple Pinterest accounts.
+
+## Usage
+
+1. **Adding a Pinterest Account**:
+   - Navigate to the Pinterest Accounts section in the application.
+   - Enter a Pinterest username and click "Verify & Add".
+   - The app will verify the account by querying DynamoDB and load all boards/pins if found.
+
+2. **Managing Multiple Accounts**:
+   - Users can manage multiple Pinterest accounts in the application.
+   - This includes adding new accounts and verifying existing ones.
+
+## Implementation Details
+
+- **Data Retrieval**: Accounts and boards are fetched from DynamoDB and cached on disk.
+- **Verification**: The app verifies the account by querying DynamoDB.
+- **Account Management**: Users can manage multiple accounts in the application.
+
+## Error Handling
+
+- **DynamoDB Errors**: All DynamoDB operations are wrapped in try/catch blocks, with detailed error logging and fallback to mock data if needed.
+- **Cache Errors**: Disk I/O errors are handled gracefully, with fallback to direct DynamoDB queries if the cache is unavailable.
+- **Monitoring**: The app exposes cache statistics and health metrics in the UI for transparency and debugging.
+
+# Pinterest Board Manager
+
+This section provides detailed information about the Pinterest board manager feature of the application.
+
+## Features
+
+- **Board Management**: Users can view and manage their Pinterest boards.
+- **Pin Management**: Users can view and manage their pins on boards.
+- **Search and Filter**: Users can search and filter boards and pins.
+- **Responsive Layout**: Pins are displayed in a responsive, masonry-style layout.
+
+## Usage
+
+1. **Accessing the Pinterest Boards Page**:
+   - Navigate to the Pinterest Boards section in the application.
+   - This section allows users to view and manage their Pinterest boards.
+
+2. **Viewing Boards**:
+   - Users can click on a board to view pins in a masonry layout.
+   - The layout is designed to be responsive and Pinterest-like.
+
+3. **Managing Pins**:
+   - Users can manage pins on a board by clicking on the pin and using the provided options.
+   - This includes actions like editing, deleting, or adding new pins.
+
+4. **Searching and Filtering**:
+   - Users can search for specific boards or pins using the search bar.
+   - Filters can be applied to narrow down the results.
+
+## Implementation Details
+
+- **Data Retrieval**: Pins are fetched from DynamoDB and cached on disk.
+- **Layout**: Pins are displayed in a masonry layout for a Pinterest-like experience.
+- **Search and Filter**: Pins are searchable and filterable based on various criteria.
+
+## Error Handling
+
+- **DynamoDB Errors**: All DynamoDB operations are wrapped in try/catch blocks, with detailed error logging and fallback to mock data if needed.
+- **Cache Errors**: Disk I/O errors are handled gracefully, with fallback to direct DynamoDB queries if the cache is unavailable.
+- **Monitoring**: The app exposes cache statistics and health metrics in the UI for transparency and debugging.
+
+## Pinterest Account Management
+
+This section provides detailed information about the Pinterest account management feature of the application.
+
+## Features
+
+- **Account Verification**: Users can verify their Pinterest account.
+- **Account Management**: Users can manage multiple Pinterest accounts.
+
+## Usage
+
+1. **Adding a Pinterest Account**:
+   - Navigate to the Pinterest Accounts section in the application.
+   - Enter a Pinterest username and click "Verify & Add".
+   - The app will verify the account by querying DynamoDB and load all boards/pins if found.
+
+2. **Managing Multiple Accounts**:
+   - Users can manage multiple Pinterest accounts in the application.
+   - This includes adding new accounts and verifying existing ones.
+
+## Implementation Details
+
+- **Data Retrieval**: Accounts and boards are fetched from DynamoDB and cached on disk.
+- **Verification**: The app verifies the account by querying DynamoDB.
+- **Account Management**: Users can manage multiple accounts in the application.
+
+## Error Handling
+
+- **DynamoDB Errors**: All DynamoDB operations are wrapped in try/catch blocks, with detailed error logging and fallback to mock data if needed.
+- **Cache Errors**: Disk I/O errors are handled gracefully, with fallback to direct DynamoDB queries if the cache is unavailable.
+- **Monitoring**: The app exposes cache statistics and health metrics in the UI for transparency and debugging.
+
+# Pinterest Board Manager
+
+This section provides detailed information about the Pinterest board manager feature of the application.
+
+## Features
+
+- **Board Management**: Users can view and manage their Pinterest boards.
+- **Pin Management**: Users can view and manage their pins on boards.
+- **Search and Filter**: Users can search and filter boards and pins.
+- **Responsive Layout**: Pins are displayed in a responsive, masonry-style layout.
+
+## Usage
+
+1. **Accessing the Pinterest Boards Page**:
+   - Navigate to the Pinterest Boards section in the application.
+   - This section allows users to view and manage their Pinterest boards.
+
+2. **Viewing Boards**:
+   - Users can click on a board to view pins in a masonry layout.
+   - The layout is designed to be responsive and Pinterest-like.
+
+3. **Managing Pins**:
+   - Users can manage pins on a board by clicking on the pin and using the provided options.
+   - This includes actions like editing, deleting, or adding new pins.
+
+4. **Searching and Filtering**:
+   - Users can search for specific boards or pins using the search bar.
+   - Filters can be applied to narrow down the results.
+
+## Implementation Details
+
+- **Data Retrieval**: Pins are fetched from DynamoDB and cached on disk.
+- **Layout**: Pins are displayed in a masonry layout for a Pinterest-like experience.
+- **Search and Filter**: Pins are searchable and filterable based on various criteria.
+
+## Error Handling
+
+- **DynamoDB Errors**: All DynamoDB operations are wrapped in try/catch blocks, with detailed error logging and fallback to mock data if needed.
+- **Cache Errors**: Disk I/O errors are handled gracefully, with fallback to direct DynamoDB queries if the cache is unavailable.
+- **Monitoring**: The app exposes cache statistics and health metrics in the UI for transparency and debugging.
+
+## Pinterest Account Management
+
+This section provides detailed information about the Pinterest account management feature of the application.
+
+## Features
+
+- **Account Verification**: Users can verify their Pinterest account.
+- **Account Management**: Users can manage multiple Pinterest accounts.
+
+## Usage
+
+1. **Adding a Pinterest Account**:
+   - Navigate to the Pinterest Accounts section in the application.
+   - Enter a Pinterest username and click "Verify & Add".
+   - The app will verify the account by querying DynamoDB and load all boards/pins if found.
+
+2. **Managing Multiple Accounts**:
+   - Users can manage multiple Pinterest accounts in the application.
+   - This includes adding new accounts and verifying existing ones.
+
+## Implementation Details
+
+- **Data Retrieval**: Accounts and boards are fetched from DynamoDB and cached on disk.
+- **Verification**: The app verifies the account by querying DynamoDB.
+- **Account Management**: Users can manage multiple accounts in the application.
+
+## Error Handling
+
+- **DynamoDB Errors**: All DynamoDB operations are wrapped in try/catch blocks, with detailed error logging and fallback to mock data if needed.
+- **Cache Errors**: Disk I/O errors are handled gracefully, with fallback to direct DynamoDB queries if the cache is unavailable.
+- **Monitoring**: The app exposes cache statistics and health metrics in the UI for transparency and debugging.
+
+# Pinterest Board Manager
+
+This section provides detailed information about the Pinterest board manager feature of the application.
+
+## Features
+
+- **Board Management**: Users can view and manage their Pinterest boards.
+- **Pin Management**: Users can view and manage their pins on boards.
+- **Search and Filter**: Users can search and filter boards and pins.
+- **Responsive Layout**: Pins are displayed in a responsive, masonry-style layout.
+
+## Usage
+
+1. **Accessing the Pinterest Boards Page**:
+   - Navigate to the Pinterest Boards section in the application.
+   - This section allows users to view and manage their Pinterest boards.
+
+2. **Viewing Boards**:
+   - Users can click on a board to view pins in a masonry layout.
+   - The layout is designed to be responsive and Pinterest-like.
+
+3. **Managing Pins**:
+   - Users can manage pins on a board by clicking on the pin and using the provided options.
+   - This includes
