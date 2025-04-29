@@ -1,15 +1,10 @@
 import { NextResponse } from 'next/server';
-import { DynamoDBClient, ListTablesCommand, ScanCommand, QueryCommand } from '@aws-sdk/client-dynamodb';
+import { ListTablesCommand, ScanCommand, QueryCommand } from '@aws-sdk/client-dynamodb';
 import { unmarshall } from '@aws-sdk/util-dynamodb';
+import { client } from '@/utils/aws-config';
 
 // Initialize DynamoDB client
-const dynamoDBClient = new DynamoDBClient({
-  region: process.env.AWS_REGION || 'us-east-1',
-  credentials: {
-    accessKeyId: process.env.AWS_ACCESS_KEY_ID || '',
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || ''
-  }
-});
+const dynamoDBClient = client;
 
 export async function POST(request: Request) {
   try {

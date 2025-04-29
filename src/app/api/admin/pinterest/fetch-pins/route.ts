@@ -1,16 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { DynamoDBClient, ListTablesCommand, ScanCommand } from '@aws-sdk/client-dynamodb';
+import { ListTablesCommand, ScanCommand } from '@aws-sdk/client-dynamodb';
 import { transformDynamoDBJson } from '@/utils/dynamoUtils';
 import { cacheData, getCachedData, deleteCachedData } from '@/utils/disk-storage';
+import { client } from '@/utils/aws-config';
 
 // Initialize DynamoDB client
-const dynamoClient = new DynamoDBClient({
-  region: process.env.AWS_REGION || 'us-east-1',
-  credentials: {
-    accessKeyId: process.env.AWS_ACCESS_KEY_ID || '',
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || ''
-  }
-});
+const dynamoClient = client;
 
 // Cache TTL in seconds (10 minutes)
 const CACHE_TTL = 10 * 60;

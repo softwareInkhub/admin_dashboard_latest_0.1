@@ -1,18 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { 
-  DynamoDBClient, 
   CreateTableCommand,
   ListTablesCommand,
   ScanCommand
 } from '@aws-sdk/client-dynamodb';
 import { 
-  DynamoDBDocumentClient, 
   PutCommand, 
   DeleteCommand,
   QueryCommand
 } from '@aws-sdk/lib-dynamodb';
 import { v4 as uuidv4 } from 'uuid';
 import { transformDynamoDBJson } from '@/utils/dynamoUtils';
+import { client, docClient } from '@/utils/aws-config';
 
 // Table name for Pinterest accounts
 const TABLE_NAME = 'pinterest_inkhub_accounts';
@@ -49,22 +48,15 @@ interface DynamoDBAccountItem {
 }
 
 // Initialize DynamoDB clients
-const client = new DynamoDBClient({
-  region: process.env.AWS_REGION || 'us-east-1',
-  credentials: {
-    accessKeyId: process.env.AWS_ACCESS_KEY_ID || '',
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || '',
-  },
-});
-
-const docClient = DynamoDBDocumentClient.from(client);
+const dynamoClient = client;
+const dynamoDocClient = docClient;
 
 // Helper function to ensure the table exists
 async function ensureTableExists() {
   try {
     // Check if table exists
     const listCommand = new ListTablesCommand({});
-    const { TableNames } = await client.send(listCommand);
+    const { TableNames } = await dynamoClient.send(listCommand);
     
     if (TableNames && TableNames.includes(TABLE_NAME)) {
       console.log(`Table ${TABLE_NAME} already exists`);
@@ -84,7 +76,7 @@ async function ensureTableExists() {
       BillingMode: 'PAY_PER_REQUEST'
     });
     
-    await client.send(createCommand);
+    await dynamoClient.send(createCommand);
     console.log(`Created table ${TABLE_NAME}`);
     
     // Wait for table to be active
@@ -113,7 +105,7 @@ export async function GET() {
       TableName: TABLE_NAME
     });
     
-    const response = await client.send(scanCommand);
+    const response = await dynamoClient.send(scanCommand);
     
     // Transform DynamoDB response to regular objects
     const accounts = response.Items?.map(item => transformDynamoDBJson(item)) || [];
@@ -175,7 +167,7 @@ export async function POST(request: NextRequest) {
       Item: accountItem
     });
     
-    await client.send(putCommand);
+    await dynamoClient.send(putCommand);
     
     return NextResponse.json({
       success: true,
@@ -211,7 +203,7 @@ export async function DELETE(request: NextRequest) {
       Key: { id }
     });
     
-    await docClient.send(deleteCommand);
+    await dynamoDocClient.send(deleteCommand);
     
     return NextResponse.json({
       success: true,
