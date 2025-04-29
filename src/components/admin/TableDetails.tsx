@@ -466,7 +466,7 @@ export const TableDetails: React.FC<TableDetailsProps> = ({
             <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-4 gap-2 sm:gap-0">
               <h3 className="text-base sm:text-lg font-semibold">
                 {isQueryMode ? 'Query Results' : 'Table Data'} 
-                {totalCount !== undefined && ` (${items.length} of ${totalCount})`}
+                {totalCount !== undefined && ` (${items.length})`}
               </h3>
               <div className="flex gap-2">
                 <button
@@ -525,12 +525,7 @@ export const TableDetails: React.FC<TableDetailsProps> = ({
                 <div className="bg-gray-50 px-2 sm:px-3 py-1 rounded-md border border-gray-200 text-xs text-gray-600 inline-flex items-center">
                   <span className="font-medium">Loaded:</span>
                   <span className="ml-1">{items.length}</span>
-                  {totalCount !== undefined && (
-                    <>
-                      <span className="text-gray-400 mx-1">of</span>
-                      <span>{totalCount}</span>
-                    </>
-                  )}
+                  
                   {isLoading && (
                     <div className="ml-2 w-2 h-2 rounded-full bg-blue-600 animate-pulse"></div>
                   )}
