@@ -2,11 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { 
   CreateTableCommand,
   ListTablesCommand,
-  ScanCommand
+  ScanCommand,
+  DescribeTableCommand
 } from '@aws-sdk/client-dynamodb';
 import { 
-  PutCommand, 
-  DeleteCommand,
+  PutCommand,
   QueryCommand
 } from '@aws-sdk/lib-dynamodb';
 import { v4 as uuidv4 } from 'uuid';
@@ -73,22 +73,66 @@ async function ensureTableExists() {
       AttributeDefinitions: [
         { AttributeName: 'id', AttributeType: 'S' }
       ],
-      BillingMode: 'PAY_PER_REQUEST'
+      BillingMode: 'PAY_PER_REQUEST',
+      // Add tags for better resource management
+      Tags: [
+        {
+          Key: 'Environment',
+          Value: process.env.NODE_ENV || 'production'
+        },
+        {
+          Key: 'Application',
+          Value: 'Pinterest Integration'
+        }
+      ]
     });
     
-    await dynamoClient.send(createCommand);
-    console.log(`Created table ${TABLE_NAME}`);
-    
-    // Wait for table to be active
-    console.log('Waiting for table to become active...');
-    let tableActive = false;
-    while (!tableActive) {
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      // We could check table status here, but for simplicity, let's assume it's active after a delay
-      tableActive = true;
+    try {
+      await dynamoClient.send(createCommand);
+      console.log(`Created table ${TABLE_NAME}`);
+      
+      // Wait for table to be active
+      console.log('Waiting for table to become active...');
+      let tableActive = false;
+      let attempts = 0;
+      const maxAttempts = 30; // 30 seconds timeout
+      
+      while (!tableActive && attempts < maxAttempts) {
+        try {
+          const describeCommand = new DescribeTableCommand({
+            TableName: TABLE_NAME
+          });
+          const { Table } = await dynamoClient.send(describeCommand);
+          
+          if (Table?.TableStatus === 'ACTIVE') {
+            tableActive = true;
+            console.log(`Table ${TABLE_NAME} is now active`);
+          } else {
+            console.log(`Table status: ${Table?.TableStatus}, waiting...`);
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            attempts++;
+          }
+        } catch (error) {
+          console.error('Error checking table status:', error);
+          attempts++;
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+      }
+      
+      if (!tableActive) {
+        throw new Error(`Table ${TABLE_NAME} failed to become active after ${maxAttempts} seconds`);
+      }
+      
+      return true;
+    } catch (error) {
+      console.error('Error creating table:', error);
+      // If the error is because the table already exists, that's fine
+      if (error instanceof Error && error.message.includes('already exists')) {
+        console.log(`Table ${TABLE_NAME} already exists (from error message)`);
+        return true;
+      }
+      throw error;
     }
-    
-    return true;
   } catch (error) {
     console.error('Error ensuring table exists:', error);
     return false;
@@ -141,78 +185,45 @@ export async function POST(request: NextRequest) {
     const createdAt = data.createdAt || new Date().toISOString();
     
     // Prepare the item for DynamoDB
-    const accountItem: DynamoDBAccountItem = {
-      id: { S: accountId },
-      username: { S: data.username },
-      createdAt: { S: createdAt }
+    const accountItem = {
+      id: accountId,
+      username: data.username,
+      createdAt: createdAt,
+      ...(data.boards && Array.isArray(data.boards) && {
+        boards: data.boards.map((board: PinterestBoard) => ({
+          id: board.id || uuidv4(),
+          name: board.name || 'Untitled Board',
+          ...(board.url && { url: board.url }),
+          ...(board.description && { description: board.description })
+        }))
+      })
     };
     
-    // Add boards if they exist
-    if (data.boards && Array.isArray(data.boards)) {
-      accountItem.boards = { 
-        L: data.boards.map((board: PinterestBoard) => ({
-          M: {
-            id: { S: board.id || uuidv4() },
-            name: { S: board.name || 'Untitled Board' },
-            ...(board.url && { url: { S: board.url } }),
-            ...(board.description && { description: { S: board.description } })
-          }
-        }))
-      };
-    }
-    
-    // Save to DynamoDB
+    // Save to DynamoDB using the document client
     const putCommand = new PutCommand({
       TableName: TABLE_NAME,
       Item: accountItem
     });
     
-    await dynamoClient.send(putCommand);
-    
-    return NextResponse.json({
-      success: true,
-      account: transformDynamoDBJson(accountItem)
-    });
+    try {
+      await dynamoDocClient.send(putCommand);
+      console.log(`Successfully saved account with ID: ${accountId}`);
+      
+      return NextResponse.json({
+        success: true,
+        account: accountItem
+      });
+    } catch (error) {
+      console.error('Error saving to DynamoDB:', error);
+      return NextResponse.json(
+        { error: 'Failed to save account to DynamoDB', details: error instanceof Error ? error.message : String(error) },
+        { status: 500 }
+      );
+    }
   } catch (error) {
     console.error('Error saving Pinterest account:', error);
     return NextResponse.json(
-      { error: 'Failed to save Pinterest account' },
-      { status: 500 }
-    );
-  }
-}
-
-// DELETE: Remove a Pinterest account
-export async function DELETE(request: NextRequest) {
-  try {
-    const { searchParams } = new URL(request.url);
-    const id = searchParams.get('id');
-    
-    if (!id) {
-      return NextResponse.json(
-        { error: 'Account ID is required' },
-        { status: 400 }
-      );
-    }
-    
-    await ensureTableExists();
-    
-    // Delete from DynamoDB
-    const deleteCommand = new DeleteCommand({
-      TableName: TABLE_NAME,
-      Key: { id }
-    });
-    
-    await dynamoDocClient.send(deleteCommand);
-    
-    return NextResponse.json({
-      success: true,
-      message: 'Account deleted successfully'
-    });
-  } catch (error) {
-    console.error('Error deleting Pinterest account:', error);
-    return NextResponse.json(
-      { error: 'Failed to delete Pinterest account' },
+      { error: 'Failed to save Pinterest account', details: error instanceof Error ? error.message : String(error) },
       { status: 500 }
     );
   }

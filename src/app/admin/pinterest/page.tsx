@@ -267,17 +267,6 @@ export default function PinterestPage() {
     }
   };
 
-  const handleRemoveAccount = async (id: string) => {
-    const success = await deleteAccount(id);
-    
-    if (success) {
-      const updatedAccounts = accounts.filter(account => account.id !== id);
-      setAccounts(updatedAccounts);
-    } else {
-      setError('Failed to delete account');
-    }
-  };
-
   return (
     <div className="py-8 bg-gray-50 min-h-screen">
       {/* Add the responsive styles */}
@@ -441,21 +430,6 @@ export default function PinterestPage() {
                         </div>
                       </div>
                     )}
-
-                    <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                      <button
-                        onClick={(e) => {
-                          e.preventDefault(); // Prevent navigation
-                          handleRemoveAccount(account.id);
-                        }}
-                        className="p-1.5 bg-white rounded-full shadow-sm text-gray-400 hover:text-red-500 focus:outline-none border border-gray-200 hover:border-red-200 transition-colors duration-200"
-                        title="Remove account"
-                      >
-                        <svg className="h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                          <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
-                        </svg>
-                      </button>
-                    </div>
                   </div>
                 </Link>
               </div>
