@@ -10,8 +10,8 @@ import Masonry from 'react-masonry-css';
 const masonryStyles = `
   .my-masonry-grid {
     display: flex;
-    width: auto;
     margin-left: -16px; /* gutter size offset */
+    width: auto;
   }
   .my-masonry-grid_column {
     padding-left: 16px; /* gutter size */
@@ -19,6 +19,26 @@ const masonryStyles = `
   }
   .my-masonry-grid_column > div {
     margin-bottom: 16px;
+  }
+  
+  /* Optional: different gutter size on mobile */
+  @media (max-width: 800px) {
+    .my-masonry-grid {
+      margin-left: -12px; /* gutter size offset */
+    }
+    .my-masonry-grid_column {
+      padding-left: 12px; /* gutter size */
+    }
+  }
+  
+  /* Optional: different gutter size on smaller mobile */
+  @media (max-width: 480px) {
+    .my-masonry-grid {
+      margin-left: -8px; /* gutter size offset */
+    }
+    .my-masonry-grid_column {
+      padding-left: 8px; /* gutter size */
+    }
   }
   
   /* Responsive styles for pin cards */
@@ -65,12 +85,6 @@ const masonryStyles = `
   @media (max-width: 480px) {
     .pin-card-img {
       max-height: 180px;
-    }
-    .my-masonry-grid_column {
-      padding-left: 8px; /* smaller gutter for mobile */
-    }
-    .my-masonry-grid {
-      margin-left: -8px; /* smaller gutter for mobile */
     }
     .board-title {
       font-size: 1.125rem;
@@ -141,12 +155,12 @@ export default function BoardDetailPage({
   
   // Define breakpoints for the masonry layout
   const breakpointColumnsObj = {
-    default: 4, // default number of columns
-    1280: 4,    // 4 columns at 1280px or more
-    1024: 3,    // 3 columns at 1024px or more
-    768: 2,     // 2 columns at 768px or more
-    480: 2,     // 2 columns at 480px or more
-    360: 1      // 1 column at 360px or below (very small phones)
+    default: 4,
+    1280: 4,
+    1024: 3,
+    768: 2,
+    480: 2,
+    360: 1
   };
   
   // Handler for clicks outside the sort and filter dropdowns
@@ -902,10 +916,9 @@ export default function BoardDetailPage({
                         <img
                           src={imageUrl}
                           alt={title}
-                          className="w-full object-cover pin-card-img"
-                          style={{ maxHeight: '320px' }}
+                          className="w-full rounded"
+                          style={{ width: '100%', display: 'block' }}
                           onError={(e) => {
-                            // If image fails to load, replace with placeholder
                             const target = e.target as HTMLImageElement;
                             console.log(`Image failed to load: ${target.src}`);
                             target.onerror = null; // Prevent infinite loop
