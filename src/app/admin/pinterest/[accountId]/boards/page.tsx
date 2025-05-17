@@ -336,7 +336,7 @@ export default function BoardsPage({ params }: { params: { accountId: string } }
             </div>
           </div>
         ) : (
-          <div className="grid grid-cols-2 xs:grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 gap-2 xs:gap-3 sm:gap-4 lg:gap-6">
+          <div className="flex flex-wrap gap-x-3 gap-y-3">
             {boards.map((board) => {
               // Determine the best image to use
               let imageUrl = board.image_thumbnail_url;
@@ -360,27 +360,28 @@ export default function BoardsPage({ params }: { params: { accountId: string } }
               return (
                 <Link
                   key={board.id}
-                  href={`/admin/pinterest/${accountId}/boards/${board.id}`}
-                  className="bg-white rounded-lg shadow overflow-hidden hover:shadow-md transition-shadow duration-200"
+                  href={{
+                    pathname: `/admin/pinterest/${accountId}/boards/${board.id}`,
+                    query: { username: accountUsername }
+                  }}
+                  className="bg-white rounded-lg shadow overflow-hidden hover:shadow-md transition-shadow duration-200 max-w-[96px] min-w-[80px] flex-shrink-0"
                 >
-                  <div className="h-24 xs:h-28 sm:h-32 md:h-40 bg-gray-200 relative board-card-img">
+                  <div className="w-full bg-gray-200 relative board-card-img max-w-[96px] min-w-[80px] h-28">
                     {imageUrl ? (
                       <img
                         src={imageUrl}
                         alt={board.name}
-                        className="w-full h-full object-cover"
+                        className="w-full h-full object-cover object-center block"
                         onError={(e) => {
-                          // If image fails to load, replace with placeholder
                           const target = e.target as HTMLImageElement;
-                          console.log(`Image failed to load: ${target.src}`);
-                          target.onerror = null; // Prevent infinite loop
+                          target.onerror = null;
                           target.src = 'https://via.placeholder.com/400x300?text=Pinterest+Board';
                         }}
                       />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center text-gray-400">
                         <svg
-                          className="h-6 w-6 xs:h-8 xs:w-8 sm:h-10 sm:w-10 md:h-12 md:w-12"
+                          className="h-8 w-8"
                           fill="none"
                           viewBox="0 0 24 24"
                           stroke="currentColor"
@@ -395,18 +396,18 @@ export default function BoardsPage({ params }: { params: { accountId: string } }
                       </div>
                     )}
                     {board.pin_count !== undefined && board.pin_count > 0 && (
-                      <div className="absolute top-1 right-1 bg-black bg-opacity-60 text-white text-xs px-1 xs:px-1.5 sm:px-2 py-0.5 rounded-full text-[10px] xs:text-xs">
+                      <div className="absolute top-1 right-1 bg-black bg-opacity-60 text-white px-1 py-0.5 rounded-full text-xs font-semibold leading-tight">
                         {board.pin_count} {board.pin_count === 1 ? 'pin' : 'pins'}
                       </div>
                     )}
                   </div>
-                  <div className="p-1.5 xs:p-2 sm:p-3 md:p-4">
-                    <h3 className="text-xs xs:text-sm sm:text-base md:text-lg font-medium text-gray-900 truncate board-card-title">{board.name}</h3>
+                  <div className="p-1">
+                    <h3 className="text-[10px] font-medium text-gray-900 truncate board-card-title">{board.name}</h3>
                     {board.description && (
-                      <p className="mt-0.5 text-[10px] xs:text-xs sm:text-sm text-gray-500 line-clamp-1 sm:line-clamp-2 board-card-description">{board.description}</p>
+                      <p className="mt-0.5 text-[8px] text-gray-500 line-clamp-1 board-card-description">{board.description}</p>
                     )}
                     {createdDate && (
-                      <p className="mt-0.5 xs:mt-1 sm:mt-2 text-[10px] xs:text-xs text-gray-400 board-card-date">
+                      <p className="mt-0.5 text-[8px] text-gray-400 board-card-date">
                         Created {createdDate}
                       </p>
                     )}
