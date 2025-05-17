@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 // Import Masonry component (you'll need to run: npm install react-masonry-css)
 import Masonry from 'react-masonry-css';
@@ -128,13 +128,17 @@ export default function BoardDetailPage({
   params: { accountId: string; boardId: string } 
 }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { accountId, boardId } = params;
+  
+  // Try to get username from URL query first
+  const usernameFromQuery = searchParams.get('username') || '';
   
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [pins, setPins] = useState<Pin[]>([]);
   const [board, setBoard] = useState<Board | null>(null);
-  const [accountUsername, setAccountUsername] = useState<string>('');
+  const [accountUsername, setAccountUsername] = useState<string>(usernameFromQuery);
   const [selectedPin, setSelectedPin] = useState<Pin | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   
@@ -196,73 +200,72 @@ export default function BoardDetailPage({
         
         console.log(`Fetching board details and pins for board ID: ${boardId}`);
         
-        // Step 1: Get account info from API
-        let username = '';
+        let username = usernameFromQuery;
         let boardInfo: Board | null = null;
         
-        // First fetch the account details using the new API
-        const accountResponse = await fetch('/api/admin/pinterest/fetch-account', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ accountId }),
-        });
-        
-        const accountData = await accountResponse.json();
-        
-        if (!accountResponse.ok || !accountData.success) {
-          console.log('Falling back to localStorage for account data');
-          // Fallback to localStorage if API fails
-          if (typeof window !== 'undefined') {
-            try {
-              const savedAccounts = localStorage.getItem('pinterestAccounts');
-              if (savedAccounts) {
-                const accounts = JSON.parse(savedAccounts);
-                const account = accounts.find((acc: any) => acc.id === accountId);
-                
-                if (account) {
-                  username = account.username;
-                  setAccountUsername(username);
-                  console.log(`Found username ${username} for account ${accountId} in localStorage`);
+        // Only fetch account info if username is not available from query
+        if (!username) {
+          const accountResponse = await fetch('/api/admin/pinterest/fetch-account', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ accountId }),
+          });
+          
+          const accountData = await accountResponse.json();
+          
+          if (accountResponse.ok && accountData.success) {
+            username = accountData.account.username;
+            setAccountUsername(username);
+            console.log(`Found username ${username} for account ${accountId} from API`);
+            
+            // Look for board info in the account data
+            if (accountData.account.boards && Array.isArray(accountData.account.boards)) {
+              const foundBoard = accountData.account.boards.find((b: any) => b.id === boardId);
+              if (foundBoard) {
+                boardInfo = {
+                  id: foundBoard.id,
+                  name: foundBoard.name,
+                  description: foundBoard.description
+                };
+                setBoard(boardInfo);
+                console.log(`Found board info for ${boardId}: ${foundBoard.name}`);
+              }
+            }
+          } else {
+            console.log('Falling back to localStorage for account data');
+            // Fallback to localStorage if API fails
+            if (typeof window !== 'undefined') {
+              try {
+                const savedAccounts = localStorage.getItem('pinterestAccounts');
+                if (savedAccounts) {
+                  const accounts = JSON.parse(savedAccounts);
+                  const account = accounts.find((acc: any) => acc.id === accountId);
                   
-                  // Also look for board info
-                  if (account.boards && Array.isArray(account.boards)) {
-                    const foundBoard = account.boards.find((b: any) => b.id === boardId);
-                    if (foundBoard) {
-                      boardInfo = {
-                        id: foundBoard.id,
-                        name: foundBoard.name,
-                        description: foundBoard.description
-                      };
-                      setBoard(boardInfo);
-                      console.log(`Found board info for ${boardId}: ${foundBoard.name}`);
+                  if (account) {
+                    username = account.username;
+                    setAccountUsername(username);
+                    console.log(`Found username ${username} for account ${accountId} in localStorage`);
+                    
+                    // Also look for board info
+                    if (account.boards && Array.isArray(account.boards)) {
+                      const foundBoard = account.boards.find((b: any) => b.id === boardId);
+                      if (foundBoard) {
+                        boardInfo = {
+                          id: foundBoard.id,
+                          name: foundBoard.name,
+                          description: foundBoard.description
+                        };
+                        setBoard(boardInfo);
+                        console.log(`Found board info for ${boardId}: ${foundBoard.name}`);
+                      }
                     }
                   }
                 }
+              } catch (e) {
+                console.error('Error reading from localStorage:', e);
               }
-            } catch (e) {
-              console.error('Error reading from localStorage:', e);
-            }
-          }
-        } else {
-          // Use data from API response
-          const account = accountData.account;
-          username = account.username;
-          setAccountUsername(username);
-          console.log(`Found username ${username} for account ${accountId} from API`);
-          
-          // Look for board info in the account data
-          if (account.boards && Array.isArray(account.boards)) {
-            const foundBoard = account.boards.find((b: any) => b.id === boardId);
-            if (foundBoard) {
-              boardInfo = {
-                id: foundBoard.id,
-                name: foundBoard.name,
-                description: foundBoard.description
-              };
-              setBoard(boardInfo);
-              console.log(`Found board info for ${boardId}: ${foundBoard.name}`);
             }
           }
         }
@@ -317,7 +320,7 @@ export default function BoardDetailPage({
     };
     
     fetchData();
-  }, [accountId, boardId]);
+  }, [accountId, boardId, usernameFromQuery]);
   
   // Update useEffect to collect available hashtags
   useEffect(() => {
@@ -787,11 +790,7 @@ export default function BoardDetailPage({
             </div>
           </div>
         ) : (
-          <Masonry
-            breakpointCols={breakpointColumnsObj}
-            className="my-masonry-grid"
-            columnClassName="my-masonry-grid_column"
-          >
+          <div className="flex flex-wrap gap-x-1 gap-y-2 justify-start">
             {sortedPins.map((pin) => {
               // Update the pin data extraction to handle the correct nested structure
               const transformed = pin.transformedData;
@@ -901,76 +900,54 @@ export default function BoardDetailPage({
                 <div
                   key={pin.id}
                   onClick={(e) => {
-                    // Prevent opening modal if clicking on the visit site button
                     if ((e.target as Element).closest('.visit-site-btn')) {
                       e.stopPropagation();
                       return;
                     }
                     openPinModal(pin);
                   }}
-                  className="mb-4 cursor-pointer pin-card"
+                  className="bg-white rounded-lg shadow hover:shadow-md transition-shadow duration-200 flex-shrink-0 mb-1 cursor-pointer pin-card"
+                  style={{ width: '110px', minWidth: '110px', maxWidth: '110px' }}
                 >
-                  <div className="bg-white rounded-lg shadow overflow-hidden hover:shadow-md transition-shadow duration-200 relative group">
-                    {imageUrl ? (
-                      <>
-                        <img
-                          src={imageUrl}
-                          alt={title}
-                          className="w-full rounded"
-                          style={{ width: '100%', display: 'block' }}
-                          onError={(e) => {
-                            const target = e.target as HTMLImageElement;
-                            console.log(`Image failed to load: ${target.src}`);
-                            target.onerror = null; // Prevent infinite loop
-                            target.src = 'https://via.placeholder.com/400x300?text=Pinterest+Pin';
-                          }}
+                  {imageUrl ? (
+                    <img
+                      src={imageUrl}
+                      alt={title}
+                      className="w-full rounded pin-card-img"
+                      style={{ width: '110px', height: '110px', objectFit: 'cover', objectPosition: 'center' }}
+                      onError={(e) => {
+                        const target = e.target as HTMLImageElement;
+                        target.onerror = null;
+                        target.src = 'https://via.placeholder.com/400x300?text=Pinterest+Pin';
+                      }}
+                    />
+                  ) : (
+                    <div className="w-full flex items-center justify-center text-gray-400 pin-card-img" style={{ width: '110px', height: '110px' }}>
+                      <svg
+                        className="h-12 w-12"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
                         />
-                        {/* Overlay that appears on hover */}
-                        <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 transition-opacity duration-200">
-                          {/* Visit site button that appears on hover if link exists */}
-                          {link && (
-                            <a 
-                              href={link}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="visit-site-btn absolute bottom-3 left-3 bg-white text-gray-900 text-xs font-medium px-2 py-1 rounded-full shadow opacity-0 group-hover:opacity-100 transition-opacity duration-200 hover:bg-gray-100"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                              }}
-                            >
-                              Visit site
-                            </a>
-                          )}
-                        </div>
-                      </>
-                    ) : (
-                      <div className="w-full h-48 flex items-center justify-center text-gray-400 pin-card-img">
-                        <svg
-                          className="h-12 w-12"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          stroke="currentColor"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
-                          />
-                        </svg>
-                      </div>
-                    )}
-                  </div>
+                      </svg>
+                    </div>
+                  )}
                   {/* Pinterest-style title below the image - only shown if title exists */}
                   {title && title !== 'Pinterest Pin' && (
-                    <h3 className="mt-2 text-sm font-medium text-gray-900 truncate pin-card-title">
+                    <h3 className="mt-1 text-[10px] font-medium text-gray-900 truncate pin-card-title">
                       {title}
                     </h3>
                   )}
                 </div>
               );
             })}
-          </Masonry>
+          </div>
         )}
       </div>
       

@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { TableDetails } from './TableDetails';
 import { addTableToSidebar, isTableSaved } from '@/utils/dynamodbSidebar';
 import { toast } from '@/components/ui/Toast';
+import { FaThumbtack, FaPlus } from 'react-icons/fa';
 
 interface CombinedTableViewProps {
   tables: string[];
@@ -25,6 +26,46 @@ export const CombinedTableView: React.FC<CombinedTableViewProps> = ({ tables, is
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const [isSaved, setIsSaved] = useState(false);
+  const [pinnedTables, setPinnedTables] = useState<string[]>([]);
+  const [pinnedTablesLoaded, setPinnedTablesLoaded] = useState(false);
+  const [tablesLoaded, setTablesLoaded] = useState(false);
+  const [openTerminalTable, setOpenTerminalTable] = useState<string | null>(null);
+  const [openTerminalTableDetails, setOpenTerminalTableDetails] = useState<any>(null);
+  const [openTerminalItems, setOpenTerminalItems] = useState<any[]>([]);
+  const [openTerminalProps, setOpenTerminalProps] = useState<any>({});
+  const [modalLoading, setModalLoading] = useState(false);
+  const [modalError, setModalError] = useState<string | null>(null);
+  const [openTerminalActiveTab, setOpenTerminalActiveTab] = useState<'info' | 'data'>('info');
+  const [openTabs, setOpenTabs] = useState<("info" | "data")[]>(["info", "data"]);
+  const [showAddTabMenu, setShowAddTabMenu] = useState(false);
+  const [searchPinned, setSearchPinned] = useState('');
+  const [searchUnpinned, setSearchUnpinned] = useState('');
+
+  // Log the tables prop every time it changes
+  useEffect(() => {
+    console.log('Available tables:', tables);
+  }, [tables]);
+
+  // Log the loaded pinnedTables after fetching from API
+  useEffect(() => {
+    fetch('/api/user/pinned-tables')
+      .then(res => res.json())
+      .then(data => {
+        console.log('Loaded pinnedTables from API:', data.pinnedTables);
+        setPinnedTables(data.pinnedTables || []);
+        setPinnedTablesLoaded(true);
+      });
+  }, []);
+
+  // Save pinned tables whenever they change
+  useEffect(() => {
+    console.log('Saving pinnedTables to API:', pinnedTables);
+    fetch('/api/user/pinned-tables', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pinnedTables }),
+    });
+  }, [pinnedTables]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -59,6 +100,23 @@ export const CombinedTableView: React.FC<CombinedTableViewProps> = ({ tables, is
       setIsSaved(false);
     }
   }, [selectedTable]);
+
+  // Track when tables are loaded
+  useEffect(() => {
+    if (!isLoading && tables.length > 0) {
+      setTablesLoaded(true);
+    }
+  }, [tables, isLoading]);
+
+  // Re-filter pinnedTables if tables change
+  useEffect(() => {
+    setPinnedTables((prev) => prev.filter((t) => tables.includes(t)));
+  }, [tables]);
+
+  const pinnedTablesToShow = pinnedTables.filter((t) => tables.includes(t));
+  const filteredPinnedTables = pinnedTablesToShow.filter((t) => t.toLowerCase().includes(searchPinned.toLowerCase()));
+  const unpinnedTables = tables.filter((t) => !pinnedTablesToShow.includes(t));
+  const filteredUnpinnedTables = unpinnedTables.filter((t) => t.toLowerCase().includes(searchUnpinned.toLowerCase()));
 
   const fetchTableDetails = async (tableName: string) => {
     if (!tableName) return;
@@ -188,7 +246,84 @@ export const CombinedTableView: React.FC<CombinedTableViewProps> = ({ tables, is
     }
   };
 
-  if (isLoading) {
+  // Card rendering helper
+  const renderTableCards = (tableList: string[], isPinnedSection: boolean) => (
+    <div className="w-full grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mt-2">
+      {tableList.map((tableName) => (
+        <div
+          key={tableName}
+          className={`relative rounded-xl shadow-md px-2 py-2 min-w-[16px] text-center h-16 flex flex-col justify-between transition-all duration-200 cursor-pointer
+            ${isPinnedSection
+              ? 'border-4 border-blue-600 bg-blue-50 text-blue-900'
+              : 'border border-gray-200 bg-white text-gray-900 hover:bg-gray-50'}
+            ${selectedTable === tableName && !isPinnedSection ? 'ring-2 ring-blue-300' : ''}`}
+          style={{ userSelect: 'none' }}
+          onClick={async () => {
+            setOpenTerminalTable(tableName);
+            setOpenTerminalActiveTab('info');
+            setModalLoading(true);
+            setModalError(null);
+            try {
+              const detailsRes = await fetch(`/api/admin/dynamodb/tables/${tableName}`);
+              if (!detailsRes.ok) throw new Error('Failed to fetch table details');
+              const detailsData = await detailsRes.json();
+              setOpenTerminalTableDetails(detailsData.table || {});
+              setOpenTerminalItems(detailsData.items || []);
+              setOpenTerminalProps({
+                tableDetails: detailsData.table || {},
+                items: detailsData.items || [],
+                isLoading: false,
+                error: null,
+                hasMoreItems: !!detailsData.lastEvaluatedKey,
+                lastEvaluatedKey: detailsData.lastEvaluatedKey,
+                onLoadMore: () => {},
+                onRefresh: () => {},
+                onRunQuery: () => {},
+                totalCount: detailsData.totalCount,
+                isQueryMode: false,
+                cacheInfo: detailsData.cacheInfo
+              });
+            } catch (err: any) {
+              setModalError(err.message || 'Failed to load table details');
+              setOpenTerminalTableDetails(null);
+              setOpenTerminalItems([]);
+              setOpenTerminalProps({});
+            }
+            setModalLoading(false);
+          }}
+        >
+          <div className="w-full">
+            <span className="text-sm font-normal truncate text-left block" title={tableName}>{tableName}</span>
+          </div>
+          <button
+            type="button"
+            className="absolute bottom-1 right-1 p-1 rounded-full bg-white border border-gray-200 shadow hover:bg-blue-50 z-10"
+            onClick={e => {
+              e.stopPropagation();
+              if (isPinnedSection) {
+                setPinnedTables((prev) => {
+                  const updated = prev.filter((t) => t !== tableName);
+                  console.log('Unpinning, new pinnedTables:', updated);
+                  return updated;
+                });
+              } else {
+                setPinnedTables((prev) => {
+                  const updated = [...prev, tableName];
+                  console.log('Pinning, new pinnedTables:', updated);
+                  return updated;
+                });
+              }
+            }}
+            title={isPinnedSection ? 'Unpin' : 'Pin to Pinned Tables'}
+          >
+            <FaThumbtack className={`h-3 w-3 ${isPinnedSection ? 'text-blue-600 rotate-45' : 'text-gray-400'}`} />
+          </button>
+        </div>
+      ))}
+    </div>
+  );
+
+  if (!tablesLoaded || !pinnedTablesLoaded) {
     return (
       <div className="flex justify-center items-center h-40">
         <div className="text-gray-600">Loading tables...</div>
@@ -217,54 +352,33 @@ export const CombinedTableView: React.FC<CombinedTableViewProps> = ({ tables, is
       <div className="bg-white shadow rounded-lg mb-4 w-full">
         <div className="px-2 py-2">
           <div className="flex flex-col sm:flex-row sm:items-center flex-wrap gap-2 sm:gap-3">
-            <label htmlFor="table-select" className="text-sm font-medium text-gray-700 whitespace-nowrap">
-              Select Table:
-            </label>
-            <div className="w-full sm:w-auto flex-grow max-w-full sm:max-w-xs relative" ref={dropdownRef}>
-              <div 
-                className="block w-full px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm text-gray-900 bg-white border border-gray-300 rounded-md shadow-sm cursor-pointer"
-                onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-              >
-                <div className="flex items-center justify-between">
-                  <span className="truncate">{selectedTable || '-- Select a Table --'}</span>
-                  <svg 
-                    className={`h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0 ml-1 text-gray-400 transition-transform ${isDropdownOpen ? 'transform rotate-180' : ''}`} 
-                    xmlns="http://www.w3.org/2000/svg" 
-                    viewBox="0 0 20 20" 
-                    fill="currentColor"
-                  >
-                    <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-                  </svg>
-                </div>
-              </div>
-
-              {isDropdownOpen && (
-                <div className="absolute z-10 mt-1 w-full bg-white shadow-lg rounded-md border border-gray-300 max-h-48 overflow-y-auto">
-                  <div 
-                    className="cursor-pointer bg-gray-50 border-b border-gray-200 px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm text-gray-700 font-medium hover:bg-gray-100"
-                    onClick={() => {
-                      setSelectedTable('');
-                      setIsDropdownOpen(false);
-                    }}
-                  >
-                    -- Select a Table --
-                  </div>
-                  {tables.map((tableName) => (
-                    <div 
-                      key={tableName} 
-                      className={`cursor-pointer px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm text-gray-800 ${selectedTable === tableName ? 'bg-blue-100' : 'hover:bg-gray-100'}`}
-                      onClick={() => {
-                        setSelectedTable(tableName);
-                        setIsDropdownOpen(false);
-                      }}
-                    >
-                      {tableName}
-                    </div>
-                  ))}
+            
+            {/* Pinned Tables Section */}
+            {pinnedTablesToShow.length > 0 && (
+              <div className="w-full mb-4">
+                <h3 className="text-2xl font-bold text-blue-700 mb-3">Pinned Tables</h3>
+                <input
+                  type="text"
+                  placeholder="Search pinned tables..."
+                  value={searchPinned}
+                  onChange={e => setSearchPinned(e.target.value)}
+                  className="mb-2 w-full sm:w-1/2 px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                {renderTableCards(filteredPinnedTables, true)}
                 </div>
               )}
+            {/* Unpinned Tables Section */}
+            <div className="w-full">
+              <h3 className="text-2xl font-bold text-gray-800 mb-3">Other Tables</h3>
+              <input
+                type="text"
+                placeholder="Search tables..."
+                value={searchUnpinned}
+                onChange={e => setSearchUnpinned(e.target.value)}
+                className="mb-2 w-full sm:w-1/2 px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              {renderTableCards(filteredUnpinnedTables, false)}
             </div>
-            
             {/* Add to Sidebar button - only show if table is selected and not already saved */}
             {selectedTable && (
               <button
@@ -282,7 +396,6 @@ export const CombinedTableView: React.FC<CombinedTableViewProps> = ({ tables, is
                 {isSaved ? 'Added to Sidebar' : 'Add to Sidebar'}
               </button>
             )}
-            
             {isQueryMode && (
               <button
                 onClick={() => { setIsQueryMode(false); fetchTableDetails(selectedTable); }}
@@ -340,15 +453,138 @@ export const CombinedTableView: React.FC<CombinedTableViewProps> = ({ tables, is
             />
           )}
         </div>
-      ) : (
-        <div className="bg-white shadow rounded-lg p-6 text-center">
-          <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M4 7v10c0 2 1 3 3 3h10c2 0 3-1 3-3V7c0-2-1-3-3-3H7c-2 0-3 1-3 3z" />
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M7 11h10" />
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M7 15h10" />
-          </svg>
-          <h3 className="mt-2 text-sm font-medium text-gray-900">No table selected</h3>
-          <p className="mt-1 text-sm text-gray-500">Select a table from the dropdown above to view its details and data.</p>
+      ) : null}
+
+      {openTerminalTable && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+          <div className="bg-white text-gray-900 rounded-lg shadow-lg p-6 w-full max-w-6xl relative">
+            <button
+              className="absolute top-2 right-2 text-white bg-red-600 hover:bg-red-700 rounded px-2 py-1 text-xs"
+              onClick={() => setOpenTerminalTable(null)}
+            >
+              Close
+            </button>
+            <div className="mb-2 font-bold text-lg text-gray-900">Terminal - {openTerminalTable}</div>
+            <div className="bg-white rounded p-0 h-[44rem] overflow-auto font-mono text-sm pb-32 border border-gray-200">
+              {openTabs.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-full text-gray-400">
+                  <span className="text-lg mb-2">No tabs open.</span>
+                  <span className="text-sm">Use the <b>+</b> button below to add a tab.</span>
+                </div>
+              ) : modalLoading ? (
+                <div className="text-gray-500">Loading table details...</div>
+              ) : modalError ? (
+                <div className="text-red-500">{modalError}</div>
+              ) : openTerminalTableDetails ? (
+                <TableDetails {...openTerminalProps} activeTab={openTerminalActiveTab} />
+              ) : (
+                <div className="text-gray-500">No table details found.</div>
+              )}
+            </div>
+            {/* Tab navigation with independent close for each tab and always allow + if a tab is closed */}
+            <nav className="flex items-center absolute left-8 bottom-8 z-20 bg-gray-50 rounded shadow px-2 border border-gray-200">
+              {openTabs.includes('info') && (
+                <div className="flex items-center">
+                  <button
+                    onClick={() => setOpenTerminalActiveTab('info')}
+                    className={`px-3 sm:px-6 py-2 sm:py-3 border-b-2 text-xs sm:text-sm font-medium focus:outline-none transition-colors duration-150
+                      ${openTerminalActiveTab === 'info'
+                        ? 'border-blue-500 text-blue-600'
+                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
+                  >
+                    Table Info
+                  </button>
+                  {openTerminalActiveTab === 'info' && (
+                    <button
+                      onClick={() => {
+                        if (openTabs.length === 1) {
+                          setOpenTabs([]);
+                        } else {
+                          setOpenTabs(tabs => tabs.filter(t => t !== 'info'));
+                          setOpenTerminalActiveTab('data');
+                        }
+                      }}
+                      className="ml-1 px-2 py-1 rounded-full text-gray-500 hover:text-red-600 focus:outline-none text-lg"
+                      title="Close Table Info"
+                      style={{ lineHeight: 1 }}
+                    >
+                      &#10005;
+                    </button>
+                  )}
+                </div>
+              )}
+              {openTabs.includes('data') && (
+                <div className="flex items-center">
+                  <button
+                    onClick={() => setOpenTerminalActiveTab('data')}
+                    className={`px-3 sm:px-6 py-2 sm:py-3 border-b-2 text-xs sm:text-sm font-medium focus:outline-none transition-colors duration-150
+                      ${openTerminalActiveTab === 'data'
+                        ? 'border-blue-500 text-blue-600'
+                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
+                  >
+                    Table Data
+                  </button>
+                  {openTerminalActiveTab === 'data' && (
+                    <button
+                      onClick={() => {
+                        if (openTabs.length === 1) {
+                          setOpenTabs([]);
+                        } else {
+                          setOpenTabs(tabs => tabs.filter(t => t !== 'data'));
+                          setOpenTerminalActiveTab('info');
+                        }
+                      }}
+                      className="ml-1 px-2 py-1 rounded-full text-gray-500 hover:text-red-600 focus:outline-none text-lg"
+                      title="Close Table Data"
+                      style={{ lineHeight: 1 }}
+                    >
+                      &#10005;
+                    </button>
+                  )}
+                </div>
+              )}
+              {/* + icon for adding closed tabs */}
+              {openTabs.length < 2 && (
+                <div className="relative ml-2">
+                  <button
+                    onClick={() => setShowAddTabMenu(v => !v)}
+                    className="p-2 rounded-full text-gray-500 hover:text-blue-600 focus:outline-none text-lg bg-gray-100 hover:bg-blue-50"
+                    title="Add Tab"
+                  >
+                    <FaPlus />
+                  </button>
+                  {showAddTabMenu && (
+                    <div className="absolute left-0 bottom-10 bg-white border rounded shadow-lg z-30 min-w-[120px]">
+                      {!openTabs.includes('info') && (
+                        <button
+                          onClick={() => {
+                            setOpenTabs(tabs => [...tabs, 'info']);
+                            setOpenTerminalActiveTab('info');
+                            setShowAddTabMenu(false);
+                          }}
+                          className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-blue-50"
+                        >
+                          Table Info
+                        </button>
+                      )}
+                      {!openTabs.includes('data') && (
+                        <button
+                          onClick={() => {
+                            setOpenTabs(tabs => [...tabs, 'data']);
+                            setOpenTerminalActiveTab('data');
+                            setShowAddTabMenu(false);
+                          }}
+                          className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-blue-50"
+                        >
+                          Table Data
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+            </nav>
+          </div>
         </div>
       )}
     </div>
